@@ -8,18 +8,17 @@
 
 # 1. Entscheidungs-Gate
 
-Vor Beginn der eigentlichen Implementierung müssen **alle offenen Architekturentscheidungen O001–O010 geschlossen** sein.
+Vor Beginn der eigentlichen Implementierung müssen **alle Architekturentscheidungen O001–O010 geschlossen** sein.
 
-Erlaubt sind vor Abschluss des Gates ausschließlich:
+Vor Abschluss des Gates erlaubt:
 
-- Recherche,
+- Recherche und technische Verifikation,
 - Kosten-/Security-Bewertung,
-- technische Verifikation,
-- isolierte und verwerfbare PoCs, soweit sie für eine Entscheidung zwingend erforderlich sind,
+- isolierte und verwerfbare PoCs,
 - Dokumentation,
 - Vorbereitung der Azure-DevOps-Migration.
 
-Nicht begonnen werden sollen vor Abschluss des Gates:
+Vor Abschluss des Gates nicht beginnen:
 
 - produktive MSP-Bicep-Module,
 - dauerhafte Accelerator-Patches,
@@ -27,27 +26,13 @@ Nicht begonnen werden sollen vor Abschluss des Gates:
 - produktive Kundenprofile,
 - Release-1.0-Code.
 
-Der Hintergrund ist, dass Architekturentscheidungen die nachfolgende Implementierung bestimmen sollen und nicht nachträglich an bereits geschriebenen Code angepasst werden dürfen.
-
 ---
 
 # 2. Bereits beschlossene Leitplanken
 
 ## D001 – Microsoft AVD Accelerator bleibt AVD-Core
 
-Der Microsoft AVD Accelerator bleibt die Basis für:
-
-- Host Pool,
-- Workspace,
-- Application Group,
-- Session-Host-Grunddeployment,
-- Scaling-/AVD-Kernintegration.
-
-Keine vollständige Eigenimplementierung des AVD-Control-Planes.
-
-Eigene MSP-Logik wird möglichst außerhalb von `workload/` und `avm/` implementiert.
-
----
+Microsoft AVD Accelerator bleibt die Basis für Host Pool, Workspace, Application Group, Session-Host-Grunddeployment und AVD-Kernintegration. Eigene MSP-Logik wird möglichst außerhalb von `workload/` und `avm/` implementiert.
 
 ## D002 – KMU-/Kostenprofil statt Enterprise-Default
 
@@ -61,9 +46,7 @@ Standardmäßig nicht erzwingen:
 - Domain Controller ohne technische Notwendigkeit,
 - zwei Domain Controller,
 - Hub-Spoke,
-- Premium-Komponenten ohne Mehrwert.
-
----
+- Premium-Komponenten ohne fachlichen Mehrwert.
 
 ## D003 – Ein Session Host ist der KMU-Default
 
@@ -71,13 +54,9 @@ Standardmäßig nicht erzwingen:
 Session Host Count = 1
 ```
 
-Die erste Produktversion soll 1–3 Hosts unterstützen. Die VM-Größe bleibt parametrierbar.
-
----
+Release 1.0 soll 1–3 Hosts unterstützen. VM-Größe bleibt parametrierbar.
 
 ## D004 – Entra ID Only ist ein vollständiges Zielmodell
-
-Ein klassischer DC gehört **nicht automatisch** zur Zielarchitektur.
 
 Wenn Anwendungen und Dienste ohne klassisches AD DS funktionieren:
 
@@ -87,44 +66,22 @@ AVD
 kein DC
 ```
 
-AD DS wird nur als zusätzliche Dependency bereitgestellt, wenn z. B. Branchensoftware klassischen Domain Join, LDAP, Kerberos, NTLM oder vergleichbare AD-DS-Funktionen voraussetzt.
+AD DS wird nur bei tatsächlicher technischer/fachlicher Notwendigkeit bereitgestellt.
 
----
-
-## D005 – Wenn AD DS benötigt wird, darf CostOptimized mit einem DC arbeiten
-
-Kostenoptimiert:
+## D005 – CostOptimized AD DS darf mit einem DC arbeiten
 
 ```text
-DC01
+CostOptimized: DC01
+Resilient:     DC01 + DC02
 ```
 
-Optional resilient:
-
-```text
-DC01
-DC02
-```
-
-Ein einzelner DC ist ein bewusst akzeptierter SPOF und benötigt mindestens statische private IP, Backup, Monitoring, Restore-Dokumentation und 24/7-Betrieb.
-
----
+Ein einzelner DC ist ein bewusst akzeptierter SPOF und benötigt mindestens statische private IP, Backup, Monitoring und Restore-Dokumentation.
 
 ## D006 – On-Premises ist nach Migration keine Betriebsdependency
 
-Der bestehende physische Server ist nur IST-Zustand/Migrationsquelle.
-
-Nach erfolgreicher Migration:
-
-- Azure ist eigenständig betriebsfähig,
-- alter physischer Server wird decommissioned,
-- NAS darf optional für Backup/Archiv verbleiben, ist aber keine Azure-Betriebsdependency.
-
----
+Der bestehende physische Server ist nur IST-Zustand/Migrationsquelle. Nach erfolgreicher Migration ist Azure eigenständig betriebsfähig und der alte Server wird decommissioned. NAS darf optional für Backup/Archiv verbleiben.
 
 ## D007 – Single VNet und Foundation vor Accelerator
-
-Standard:
 
 ```text
 VNet Kunde
@@ -134,56 +91,34 @@ VNet Kunde
 └── GatewaySubnet optional
 ```
 
-Die MSP Foundation stellt Netzwerk/Outbound/Service Endpoints bereit.
-
-Der Accelerator wird im Existing-VNet-Modell verwendet:
+Die MSP Foundation stellt Netzwerk, Outbound und Service Endpoints bereit. Accelerator verwendet standardmäßig:
 
 ```bicep
 createAvdVnet = false
 ```
 
----
-
 ## D008 – APP und SQL bleiben separate MSP-Workloads
 
-APP-/SQL-Server werden nicht in den Microsoft AVD-Core eingebaut.
-
-Sie erzwingen nicht automatisch AD DS.
-
-Falls fachlich benötigt:
+APP-/SQL-Server werden nicht in den Microsoft AVD-Core eingebaut und erzwingen nicht automatisch AD DS.
 
 ```text
 Start: SQL → Health → APP
 Stop:  APP vollständig → SQL
 ```
 
----
-
 ## D009 – Management-VM behalten und deallokieren
 
-Die Accelerator-Management-/Helper-VM wird nach sicherem Abschluss nicht gelöscht, sondern deallokiert.
+Die Management-/Helper-VM wird nach sicherem Abschluss nicht gelöscht, sondern deallokiert. Diese Entscheidung gilt nur zusammen mit Credential-/Firewall-/Cleanup-Hardening.
 
-Diese Entscheidung gilt nur zusammen mit dem im Deep Dive identifizierten Credential-/Firewall-/Cleanup-Hardening.
+## D010 – Management-VM entkoppeln und verkleinern
 
----
-
-## D010 – Management-VM wird entkoppelt und verkleinert
-
-Die Größe darf nicht vom Session Host übernommen werden.
-
-Erster Testkandidat:
+Die Größe darf nicht vom Session Host übernommen werden. Erster Testkandidat:
 
 ```text
 Standard_B2als_v2
 ```
 
-Keine endgültige SKU-Festlegung ohne Region-/Workflow-Test.
-
----
-
 ## D011 – Azure DevOps ist die dauerhafte Entwicklungs-/Deploymentplattform
-
-Ziel:
 
 ```text
 Azure Repos
@@ -192,17 +127,20 @@ Azure DevOps Environments / Approvals
 Workload Identity Federation
 ```
 
-GitHub ist nur noch temporäre Migrationsquelle. Nach validierter Migration soll das eigene GitHub-Repository aus Kostengründen deaktiviert/archiviert werden können.
+GitHub ist nur temporäre Migrationsquelle für unser eigenes Repository.
 
 ---
 
-# 3. Offene Architekturentscheidungen – Pflicht vor Implementierung
+# 3. Architekturentscheidungen O001–O010
 
 ## O001 – Synchronisationsverfahren bei klassischem AD DS
 
-**Status:** OFFEN
+**Status:** `BESCHLOSSEN`  
+**Entschieden:** 2026-08-07
 
-Diese Entscheidung gilt **ausschließlich für klassisches Active Directory Domain Services**, also insbesondere:
+### Geltungsbereich
+
+O001 gilt ausschließlich für **klassisches Active Directory Domain Services**, insbesondere:
 
 ```text
 NewForest
@@ -212,19 +150,55 @@ ExistingAzureForest
 
 wenn Benutzer-/Gruppenidentitäten zwischen klassischem AD DS und Microsoft Entra ID synchronisiert werden sollen.
 
-Zu entscheiden:
+### Entscheidung
+
+**Microsoft Entra Cloud Sync ist der MSP-Standard.**
 
 ```text
-Microsoft Entra Cloud Sync
-vs.
-Microsoft Entra Connect Sync
+Klassisches AD DS
+        ↓
+Benötigt der Kunde eine Funktion,
+die Cloud Sync nicht unterstützt?
+        │
+   Nein │                   Ja
+        ▼                    ▼
+ Entra Cloud Sync      Entra Connect Sync
+ = Standard            = Feature-Fallback
 ```
+
+Microsoft Entra Connect Sync bleibt vollständig unterstützt, wird aber nur eingesetzt, wenn eine **konkrete technische Kundenanforderung** Cloud Sync ausschließt.
+
+Die Verwendung von Connect Sync muss im Kunden-Onboarding mit dem ausschlaggebenden Feature dokumentiert werden.
+
+### Typische Gründe für Connect Sync
+
+Vor Einsatz prüfen, ob mindestens eine tatsächlich benötigte Funktion vorliegt, beispielsweise:
+
+- Hybrid Entra Join / Device-Synchronisation,
+- komplexe/custom Synchronisierungsregeln oder Filter,
+- Topologien oder Objektmengen außerhalb der Cloud-Sync-Grenzen,
+- andere Connect-spezifische Funktionen, die Cloud Sync zum jeweiligen Projektzeitpunkt nicht unterstützt.
+
+Die Featurematrix wird beim Kunden-Onboarding gegen den **aktuellen Microsoft-Stand** geprüft; die obige Liste ist keine dauerhaft abschließende Produktmatrix.
+
+### Betriebsmodell bei klassischem AD DS
+
+Weder Cloud Sync noch Connect Sync erzwingen in unserem KMU-Modell automatisch eine zusätzliche VM.
+
+Bei klassischem DC kann die gewählte Sync-Komponente, sofern vom Produkt unterstützt und betrieblich sinnvoll, auf vorhandener Infrastruktur betrieben werden:
+
+```text
+DC01
+├── AD DS
+├── DNS
+└── Entra Sync-Komponente
+```
+
+Eine zusätzliche Server-VM wird nur aufgrund konkreter technischer, Verfügbarkeits- oder Betriebsanforderungen vorgesehen.
 
 ### Nicht Teil von O001 – Microsoft Entra Domain Services
 
-Bei `EntraDS`/Microsoft Entra Domain Services wird **kein eigener Cloud-Sync- oder Connect-Sync-Agent für die Managed Domain betrieben**.
-
-Das Zielmodell ist dort:
+Bei `EntraDS`/Microsoft Entra Domain Services wird **kein eigener Cloud-Sync- oder Connect-Sync-Agent gegen die Managed Domain betrieben**.
 
 ```text
 Microsoft Entra ID
@@ -234,46 +208,24 @@ Microsoft-managed Synchronisierung
 Microsoft Entra Domain Services
 ```
 
-Eine APP01 oder andere Member-Server-VM wird daher **nicht allein für Entra Connect Sync gegen die Managed Domain benötigt**.
+Eine APP01 oder andere Member-Server-VM wird nicht allein für Entra Connect Sync gegen die Managed Domain benötigt.
 
-Wenn während einer Migration zusätzlich noch klassisches On-Prem-/Azure-AD-DS vorhanden ist, kann O001 weiterhin für die Synchronisierung **dieses klassischen AD DS nach Entra ID** relevant sein. Entra Domain Services synchronisiert anschließend aus Entra ID in die Managed Domain.
+Wenn während einer Migration parallel klassisches AD DS existiert, kann O001 weiterhin für die Synchronisierung **dieses klassischen AD DS nach Entra ID** relevant sein.
 
-### Betriebsmodell bei klassischem AD DS
+### Onboarding-Regel
 
-Eine Entscheidung für Entra Connect Sync bedeutet in unserem KMU-Modell **nicht automatisch eine zusätzliche Sync-VM**.
+Für jeden klassischen ADDS-Kunden:
 
-Wenn ein klassischer DC vorhanden ist, kann das gewählte Sync-Verfahren – sofern technisch unterstützt und für den Kunden sinnvoll – auf vorhandener Infrastruktur betrieben werden, z. B.:
-
-```text
-DC01
-├── AD DS
-├── DNS
-└── Entra Sync-Komponente
-```
-
-Eine zusätzliche Server-VM wird nur vorgesehen, wenn technische, betriebliche oder Verfügbarkeitsanforderungen dies tatsächlich erfordern.
-
-Bewertungskriterien:
-
-- benötigter Featureumfang,
-- Hybrid Entra Join / Device-Synchronisation,
-- Password-/Group-/Exchange-Writeback-Anforderungen,
-- komplexe Sync Rules / Filtering,
-- Betrieb auf vorhandener DC-/Server-Infrastruktur,
-- HA-/Recovery-Anforderungen,
-- Wartungs-/Updateaufwand,
-- Microsoft-Zielrichtung,
-- Automatisierbarkeit,
-- spätere Migration/Wechselbarkeit,
-- Kosten nur dort, wo tatsächlich zusätzliche Infrastruktur erforderlich wäre.
-
-**Entscheidung muss dokumentieren:** Standardverfahren für klassisches AD DS + klare Ausnahmefälle, in denen das alternative Verfahren eingesetzt wird.
+1. Cloud Sync als Ausgangspunkt wählen.
+2. Anforderungen gegen aktuelle Cloud-Sync-Funktionsmatrix prüfen.
+3. Nur bei konkreter Funktionslücke auf Connect Sync wechseln.
+4. Grund der Ausnahme im Kundenprofil dokumentieren.
 
 ---
 
 ## O002 – FSLogix Default
 
-**Status:** OFFEN
+**Status:** `OFFEN`
 
 Zu entscheiden:
 
@@ -283,12 +235,12 @@ vs.
 FSLogix bewusst optional
 ```
 
-Bewertungskriterien:
+Bewertung:
 
 - 1-Host-KMU vs. 2+ Hosts,
 - Rebuild-/Replace-Fähigkeit,
 - Benutzerprofilpersistenz,
-- zusätzliche Storage-/Identity-Komplexität,
+- Storage-/Identity-Komplexität,
 - Kosten,
 - OneDrive-/Known-Folder-Nutzung.
 
@@ -298,9 +250,7 @@ Bewertungskriterien:
 
 ## O003 – Azure Files Tier
 
-**Status:** OFFEN
-
-Zu entscheiden:
+**Status:** `OFFEN`
 
 ```text
 Standard LRS
@@ -308,14 +258,7 @@ vs.
 Premium LRS
 ```
 
-Bewertungskriterien:
-
-- reale IOPS-/Latency-Anforderungen der Zielgruppe,
-- Profilanzahl,
-- Kostendifferenz,
-- Wachstum,
-- Mindest-/Provisionierungsmodell,
-- mögliche spätere Umstellung.
+Bewertung: IOPS/Latency, Profilanzahl, Kosten, Wachstum, Provisionierungsmodell, spätere Umstellung.
 
 **Entscheidung muss dokumentieren:** CostOptimized Default + Schwelle für Premium.
 
@@ -323,9 +266,7 @@ Bewertungskriterien:
 
 ## O004 – Azure Files Netzwerkzugriff
 
-**Status:** OFFEN
-
-Zu entscheiden:
+**Status:** `OFFEN`
 
 ```text
 Service Endpoint + VNet Rules
@@ -333,14 +274,7 @@ vs.
 Private Endpoint
 ```
 
-Bewertungskriterien:
-
-- monatliche Fixkosten,
-- DNS-Komplexität,
-- Security-Anforderung,
-- Public Endpoint mit Netzwerkrestriktion akzeptabel oder nicht,
-- Customer Compliance,
-- Betriebs-/Troubleshooting-Aufwand.
+Bewertung: Fixkosten, DNS-Komplexität, Security/Compliance, Public Endpoint mit Netzwerkrestriktion, Troubleshooting-Aufwand.
 
 **Entscheidung muss dokumentieren:** CostOptimized Default + Kriterien für Private Endpoint.
 
@@ -348,13 +282,9 @@ Bewertungskriterien:
 
 ## O005 – Monitoring Baseline
 
-**Status:** OFFEN
+**Status:** `OFFEN`
 
-Zu entscheiden:
-
-Welche Monitoring-Komponenten sind verpflichtend und welche optional?
-
-Mindestens bewerten:
+Zu bewerten:
 
 - Log Analytics Workspace,
 - AMA/DCR,
@@ -371,36 +301,24 @@ Bekannter Accelerator-Befund F021 muss berücksichtigt werden.
 
 ---
 
-## O006 – Standard Session Host SKU
+## O006 – Standard Session Host SKU / Größenstrategie
 
-**Status:** OFFEN
+**Status:** `OFFEN`
 
-Keine feste SKU aus Gewohnheit übernehmen.
-
-Kandidaten sollen anhand der Zielgruppe und Messwerte bewertet werden.
-
-Entscheidungsprinzip kann auch lauten:
+Mögliche Entscheidung:
 
 ```text
-kein universeller fester SKU-Default,
+kein universeller fixer SKU-Default,
 sondern Größenprofil + empfohlener Startwert
 ```
 
-Bewertungskriterien:
-
-- 1–30 Mitarbeiter,
-- typische gleichzeitige Sessions,
-- Office/Sage/LOB-Workload,
-- CPU/RAM,
-- Burstable vs. D-/E-Serie,
-- Region/Quota,
-- Kosten.
+Bewertung: Benutzer/Concurrency, Office/Sage/LOB, CPU/RAM, Burstable vs. D-/E-Serie, Region/Quota, Kosten.
 
 ---
 
 ## O007 – Runtime-Artefakte bei privatem Repository
 
-**Status:** OFFEN
+**Status:** `OFFEN`
 
 Optionen:
 
@@ -410,28 +328,13 @@ B) Azure Storage + Managed Identity
 C) separates öffentliches Runtime-Repository
 ```
 
-Aktueller V1-Favorit aus der Analyse:
-
-```text
-Private Azure Repos
-→ Pipeline
-→ versionierter Runtime-Release
-→ privater Azure Blob Container
-→ kurzlebige read-only User-Delegation-SAS
-→ Ziel-VM
-```
-
-Managed Identity ist langfristig attraktiv, verlangt aber beim aktuellen Accelerator weitere Änderungen für verschachtelte PowerShell-/DSC-Downloads.
-
-**Entscheidung muss vor Azure-DevOps-Pipeline-Design geschlossen sein.**
+Aktueller V1-Favorit aus der Analyse: A. Entscheidung muss vor finalem Azure-DevOps-Pipeline-Design geschlossen sein.
 
 ---
 
 ## O008 – AVD Power Management Default
 
-**Status:** OFFEN
-
-Zu entscheiden:
+**Status:** `OFFEN`
 
 ```text
 NativeAutoscale + Start VM on Connect
@@ -439,31 +342,13 @@ vs.
 Custom AutoShutdown/Deallocate
 ```
 
-Dabei gilt unabhängig von der Entscheidung:
-
-- nie AVD Autoscale und eigene Automation parallel für denselben Session Host,
-- APP-/SQL-Dependency-Automation bleibt ein separates Thema.
-
-Bewertungskriterien:
-
-- 1-Host-Verhalten,
-- Disconnected Sessions,
-- RDS-GPOs,
-- Wartungsmodus,
-- Abend-/Wochenendnutzung,
-- Reproduzierbarkeit,
-- Wartungsaufwand,
-- vorhandene funktionierende Custom-AutoShutdown-Logik.
-
-Ein isolierter 1-Host-PoC ist zulässig, wenn für die Entscheidung erforderlich.
+Unabhängig von der Entscheidung: nie beide Lösungen parallel für denselben Session Host. APP-/SQL-Dependency-Automation bleibt separat.
 
 ---
 
 ## O009 – Session Host Patch Lifecycle
 
-**Status:** OFFEN
-
-Zu entscheiden:
+**Status:** `OFFEN`
 
 ```text
 Patch in Place
@@ -471,55 +356,27 @@ vs.
 Immutable/Replace Session Hosts
 ```
 
-Hintergrund: Der Accelerator setzt aktuell `NoAutoUpdate = 1` auf dem produktiven Session Host.
-
-Bewertungskriterien:
-
-- Patch-Verantwortung,
-- Wartungsfenster,
-- Golden Image / Marketplace Image,
-- Session-Host-Replacement,
-- FSLogix-Profilpersistenz,
-- Rollback,
-- Betrieb bei nur einem Host.
-
-**Kein `NoAutoUpdate=1` als MSP-Default, solange diese Entscheidung offen ist.**
+Hintergrund: Accelerator setzt derzeit `NoAutoUpdate = 1`. Kein solcher MSP-Default, solange O009 offen ist.
 
 ---
 
 ## O010 – Sicherer Storage-/Domain-Join-Helper
 
-**Status:** OFFEN
-
-Zu entscheiden:
+**Status:** `OFFEN`
 
 ```text
 A) vorhandenes DSC konsequent härten
 vs.
-B) neuen PowerShell-/Identity-basierten Bootstrap ohne Plaintext-MOF aufbauen
+B) neuer PowerShell-/Identity-basierter Bootstrap ohne Plaintext-MOF
 ```
 
-Auslöser sind die Deep-Dive-Funde F012–F018.
-
-Bewertungskriterien:
-
-- Secret-Verarbeitung,
-- Idempotenz,
-- Retry,
-- Patch-Delta zum Upstream,
-- Wartbarkeit,
-- Wiederverwendung der deallokierten Management-VM,
-- Migration auf Managed Identity.
-
-**Entscheidung muss vor produktivem ADDS/FSLogix-Code geschlossen sein.**
+Auslöser: Deep-Dive-Findings F012–F018.
 
 ---
 
 # 4. Abschlusskriterium des Architektur-Gates
 
-Das Gate ist geschlossen, wenn:
-
-- [ ] O001 entschieden und dokumentiert.
+- [x] O001 entschieden und dokumentiert.
 - [ ] O002 entschieden und dokumentiert.
 - [ ] O003 entschieden und dokumentiert.
 - [ ] O004 entschieden und dokumentiert.
@@ -529,6 +386,6 @@ Das Gate ist geschlossen, wenn:
 - [ ] O008 entschieden und dokumentiert.
 - [ ] O009 entschieden und dokumentiert.
 - [ ] O010 entschieden und dokumentiert.
-- [ ] daraus resultierende Änderungen an Projektphasen/Aufgaben in `UMSETZUNGSPLAN.md` übernommen.
+- [ ] resultierende Änderungen an Projektphasen/Aufgaben in `UMSETZUNGSPLAN.md` übernommen.
 
-Erst danach beginnt die eigentliche Implementierung. Die erste Implementierungsphase ist die Migration/Einrichtung in Azure DevOps.
+Erst nach Abschluss aller Punkte beginnt die eigentliche Implementierung. Erste Implementierungsphase bleibt Azure DevOps.
