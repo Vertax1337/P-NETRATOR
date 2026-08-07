@@ -1,0 +1,52 @@
+name: Import Azure AVD Accelerator
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/import-avdaccelerator.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Import pinned Microsoft AVD Accelerator
+        shell: bash
+        env:
+          UPSTREAM_REPOSITORY: Azure/avdaccelerator
+          UPSTREAM_COMMIT: 63c55c857f77783c01812c935957cd8c9c67a5a7
+        run: |
+          set -euo pipefail
+
+          git clone --filter=blob:none --no-checkout "https://github.com/${UPSTREAM_REPOSITORY}.git" /tmp/avdaccelerator
+          git -C /tmp/avdaccelerator checkout --detach "${UPSTREAM_COMMIT}"
+
+          rsync -a --delete \
+            --exclude='.git/' \
+            /tmp/avdaccelerator/ "${GITHUB_WORKSPACE}/"
+
+          cd "${GITHUB_WORKSPACE}"
+          git status --short
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Repository already matches the pinned upstream commit."
+            exit 0
+          fi
+
+          git commit -m "Import Azure AVD Accelerator ${UPSTREAM_COMMIT} [skip ci]"
+          git push origin HEAD:main
