@@ -52,7 +52,9 @@ Grundprinzip:
 ```text
 MSP Foundation
       ↓
-Identity / AD Dependency
+Identity-Auswahl
+      ├── Entra ID Only → kein DC erforderlich
+      └── AD DS benötigt → Identity-/DC-Dependency bereitstellen
       ↓
 Microsoft AVD Accelerator
       ↓
@@ -74,6 +76,7 @@ Primäre Zielgruppe:
 - KMU mit typischerweise **unter 30 Mitarbeitern**,
 - meistens **1 AVD Session Host**,
 - maximal zunächst 2–3 Session Hosts,
+- teilweise reine Entra-ID-/Cloud-Szenarien ohne klassischen Domain Controller,
 - häufig vorhandene klassische Branchensoftware,
 - teilweise SQL-/APP-Abhängigkeiten,
 - Kosten haben hohe Priorität,
@@ -117,6 +120,7 @@ Nicht standardmäßig bereitstellen:
 - AVD Private Link,
 - erzwungene Availability Zones,
 - erzwungene zwei Session Hosts,
+- Domain Controller ohne technische/fachliche Notwendigkeit,
 - erzwungene zwei Domain Controller,
 - unnötige dauerhaft laufende Management-VMs,
 - unnötige Hub-Spoke-Topologien.
@@ -141,30 +145,54 @@ VM-Größe bleibt parametrierbar und wird nicht für alle Kunden hart festgelegt
 
 ---
 
-## 4.4 Domain Controller
+## 4.4 Identity und Domain Controller
 
 **BESCHLOSSEN**
 
-Bei einer neuen AD-Gesamtstruktur ist für das kostenoptimierte KMU-Profil standardmäßig **ein DC** zulässig.
+Ein klassischer Domain Controller ist **kein genereller Bestandteil des KMU-Standards**.
+
+Die Identity-Architektur richtet sich nach den technischen Anforderungen des Kunden und insbesondere nach der eingesetzten Branchensoftware.
+
+### Fall A – Entra ID Only
+
+Wenn alle benötigten Anwendungen und Dienste ohne klassisches AD DS betrieben werden können, ist der bevorzugte kleinste Zielzustand:
 
 ```text
-CostOptimized:
+Entra ID
+AVD01
+kein Domain Controller
+```
+
+In diesem Fall soll **kein DC ausschließlich aus Gewohnheit oder aufgrund des bisherigen On-Prem-Designs bereitgestellt werden**.
+
+### Fall B – Klassisches AD DS erforderlich
+
+Ein Domain Controller wird als zusätzliche Identity-Dependency bereitgestellt, wenn beispielsweise eine Branchensoftware:
+
+- einen klassischen AD-Domain-Join voraussetzt,
+- LDAP/Kerberos/NTLM oder andere AD-DS-Funktionen benötigt,
+- oder eine andere technische Anforderung gegen Entra-only spricht.
+
+Wenn für einen solchen Kunden eine neue AD-Gesamtstruktur in Azure notwendig ist, ist für das kostenoptimierte KMU-Profil standardmäßig **ein DC zulässig**:
+
+```text
+ADDS / CostOptimized:
 DC01
 ```
 
 Zwei DCs bleiben eine optionale resiliente Variante:
 
 ```text
-Resilient:
+ADDS / Resilient:
 DC01
 DC02
 ```
 
 Begründung:
 
-Bei kleinen Kunden bestehen häufig auch bei AVD, APP und SQL Single-Instance-Workloads. Es wäre wirtschaftlich inkonsistent, ausschließlich für AD zwingend Hochverfügbarkeit vorzuschreiben.
+Bei kleinen Kunden bestehen häufig auch bei AVD, APP und SQL Single-Instance-Workloads. Es wäre wirtschaftlich inkonsistent, ausschließlich für AD zwingend Hochverfügbarkeit vorzuschreiben. Gleichzeitig soll AD DS aber überhaupt nur bereitgestellt werden, wenn es technisch benötigt wird.
 
-Der einzelne DC ist ein bewusst akzeptierter SPOF und benötigt deshalb mindestens:
+Wenn ein einzelner DC eingesetzt wird, ist dieser ein bewusst akzeptierter SPOF und benötigt deshalb mindestens:
 
 - statische private IP,
 - Azure Backup,
@@ -193,6 +221,8 @@ Der physische Server wird nach erfolgreicher Migration abgeschaltet.
 Eine eventuell vorhandene NAS darf weiterhin beispielsweise für Backup-Zwecke verwendet werden, ist aber **keine Betriebsabhängigkeit der Azure-Umgebung**.
 
 Ein dauerhaftes Modell „AVD in Azure + einziger produktiver DC On-Premises“ ist daher **kein Standard-Zielbild**.
+
+Bei einem Entra-only-Zielbild existiert nach der Migration entsprechend gar kein klassischer Domain Controller mehr.
 
 ---
 
@@ -254,11 +284,17 @@ existingVnetPrivateEndpointSubnetResourceId (wenn benötigt)
 DNS-Konfiguration
 ```
 
-Dadurch ist eine klare Reihenfolge möglich:
+Die Deployment-Reihenfolge ist abhängig vom gewählten Identity-Modell:
 
 ```text
+Entra-only:
+Foundation
+→ AVD Accelerator
+
+AD DS:
 Foundation
 → Identity / DC
+→ Identity Health Check
 → AVD Accelerator
 ```
 
@@ -268,7 +304,7 @@ Foundation
 
 **BESCHLOSSEN als Zielmodell, Detailparameter noch umzusetzen**
 
-Unterstützte Zielvarianten sollen mindestens umfassen:
+Die Identity-Auswahl ist ein eigener Architekturparameter. Unterstützte Zielvarianten sollen mindestens umfassen:
 
 ```text
 EntraID
@@ -276,6 +312,8 @@ ADDS
 EntraDS
 EntraIDKerberos
 ```
+
+**EntraID ist ein vollständiges Zielmodell und benötigt keinen DC.** AD DS ist eine optionale Dependency und wird nur verwendet, wenn die Kundenanforderungen dies erforderlich machen.
 
 Für AD DS wird zusätzlich unterschieden zwischen:
 
@@ -304,6 +342,8 @@ APP und SQL werden **nicht in den AVD Accelerator eingebaut**.
 Sie werden als separate optionale Bicep-Workloads implementiert.
 
 Sie sind keine harte Deployment-Abhängigkeit des AVD-Control-Planes, können aber eine fachliche Abhängigkeit der Kundenanwendung darstellen.
+
+Auch APP-/SQL-Workloads dürfen nicht automatisch implizieren, dass AD DS benötigt wird. Die jeweilige Branchensoftware entscheidet über die Identity-Anforderung.
 
 Runtime-Abhängigkeit bei entsprechenden Kunden:
 
@@ -363,7 +403,7 @@ PRECHECK
    ↓
 FOUNDATION
    ↓
-IDENTITY
+IDENTITY (conditional)
    ↓
 AVD ACCELERATOR
    ↓
@@ -374,7 +414,7 @@ CONFIGURATION
 VALIDATION
 ```
 
-Bei Entra-only kann `IDENTITY` übersprungen werden.
+Bei Entra-only wird eine AD-/DC-Identity-Stage übersprungen.
 
 Bei ADDS muss die Identity-Stage erfolgreich validiert sein, bevor der Accelerator gestartet wird.
 
@@ -518,7 +558,7 @@ Management VM = Deallocated
 
 Vorteile:
 
-- Domain Membership bleibt bestehen,
+- Domain Membership bleibt bestehen, sofern AD DS verwendet wird,
 - Wiederverwendung für spätere FSLogix-/Storage-Wartung möglich,
 - NIC und VM-Konfiguration bleiben bestehen,
 - keine Compute-Kosten im Normalbetrieb,
@@ -666,7 +706,7 @@ Wir kennen den funktionierenden Ausgangszustand und können spätere Fehler eind
 
 ### Ziel
 
-Netzwerk und gemeinsame Azure-Basis werden vor dem Accelerator bereitgestellt.
+Netzwerk und gemeinsame Azure-Basis werden vor dem Accelerator bereitgestellt. Die Foundation darf keinen Domain Controller voraussetzen.
 
 ### Aufgaben
 
@@ -682,25 +722,30 @@ Netzwerk und gemeinsame Azure-Basis werden vor dem Accelerator bereitgestellt.
 - [ ] keine Public IP für Session Hosts.
 - [ ] NAT Gateway als Standard-Outbound implementieren.
 - [ ] NAT Gateway mehreren relevanten Subnetzen desselben VNets zuordnen.
-- [ ] DNS-Server als Output/Parameter vorbereiten.
+- [ ] optionale Custom-DNS-Server als Output/Parameter vorbereiten.
 - [ ] Outputs für Accelerator erzeugen (`avdSubnetId`, `privateEndpointSubnetId`, etc.).
 - [ ] What-If und idempotentes Re-Deployment testen.
 
 ### Exit-Kriterium
 
-Ein vollständig nutzbares VNet kann unabhängig vom Accelerator bereitgestellt und mehrfach idempotent deployed werden.
+Ein vollständig nutzbares VNet kann unabhängig von Identity-Modell und Accelerator bereitgestellt und mehrfach idempotent deployed werden.
 
 ---
 
-## Phase 3 – Identity / AD DS
+## Phase 3 – Identity / optionales AD DS
+
+### Ziel
+
+Entra-only ist ein vollständiger Deploymentpfad. Klassisches AD DS wird nur als optionale Dependency bereitgestellt, wenn der Kunde bzw. seine Branchensoftware es benötigt.
 
 ### 3.1 Entra-only
 
 - [ ] Pipeline-/Bicep-Pfad ohne AD-Abhängigkeit definieren.
+- [ ] sicherstellen, dass keine DC-Ressourcen erzeugt werden.
 - [ ] Entra Join mit Accelerator testen.
 - [ ] optionales Intune Enrollment testen.
 
-### 3.2 New Forest
+### 3.2 New Forest – nur bei AD-DS-Anforderung
 
 - [ ] `msp/identity/new-forest/` erstellen.
 - [ ] DC01 VM bereitstellen.
@@ -715,7 +760,7 @@ Ein vollständig nutzbares VNet kann unabhängig vom Accelerator bereitgestellt 
 - [ ] Monitoring definieren.
 - [ ] optional `domainControllerCount = 2` für Resilient-Profil vorbereiten.
 
-### 3.3 Migration Existing Forest
+### 3.3 Migration Existing Forest – nur bei AD-DS-Anforderung
 
 - [ ] Migrationsablauf dokumentieren.
 - [ ] temporäre S2S-Verbindung als Migrationsoption vorsehen.
@@ -726,7 +771,7 @@ Ein vollständig nutzbares VNet kann unabhängig vom Accelerator bereitgestellt 
 - [ ] Demotion des alten On-Prem-DC dokumentieren.
 - [ ] Abschaltung des physischen Servers als Abschlusskriterium aufnehmen.
 
-### 3.4 Entra-Synchronisation
+### 3.4 Entra-Synchronisation – nur für AD-DS-Szenarien relevant
 
 - [ ] **OFFEN:** Cloud Sync vs. Connect Sync für unsere Standardszenarien bewerten.
 - [ ] Installations-/Betriebsort festlegen.
@@ -734,7 +779,7 @@ Ein vollständig nutzbares VNet kann unabhängig vom Accelerator bereitgestellt 
 
 ### Exit-Kriterium
 
-AD-abhängige Accelerator-Deployments können ohne dauerhaft benötigten On-Prem-Server durchgeführt werden.
+Sowohl ein vollständiges Entra-only-Deployment ohne DC als auch AD-abhängige Accelerator-Deployments ohne dauerhaft benötigten On-Prem-Server sind möglich.
 
 ---
 
@@ -771,6 +816,8 @@ entra-small
 adds-small
 ```
 
+Dabei ist `entra-small` ein eigenständiges Profil ohne Domain Controller. `adds-small` ist nur für Kunden gedacht, deren technische Anforderungen klassisches AD DS notwendig machen.
+
 Später optional:
 
 ```text
@@ -795,7 +842,7 @@ app-sql
 
 ### Exit-Kriterium
 
-Ein kleiner Kunde kann mit wenigen Parametern reproduzierbar ausgerollt werden, ohne Enterprise-Kostenkomponenten mitzubezahlen.
+Ein kleiner Kunde kann mit wenigen Parametern reproduzierbar ausgerollt werden, ohne Enterprise-Kostenkomponenten oder einen nicht benötigten DC mitzubezahlen.
 
 ---
 
@@ -833,14 +880,14 @@ Profile funktionieren nach Rebuild/Replace eines Session Hosts weiterhin korrekt
 - [ ] `msp/workloads/sql-server/` erstellen.
 - [ ] VM-Größen vollständig parametrierbar halten.
 - [ ] kein Public IP Default.
-- [ ] Domain Join optional integrieren.
+- [ ] Domain Join nur optional und abhängig vom Identity-/Applikationsmodell integrieren.
 - [ ] Backup-Anforderungen definieren.
 - [ ] APP-/SQL-spezifische Disks parametrierbar machen.
-- [ ] Branchenanwendungsinstallation nicht hart in die Infrastruktur-Baseline einbauen.
+- [ ] Branchensoftwareinstallation nicht hart in die Infrastruktur-Baseline einbauen.
 
 ### Exit-Kriterium
 
-APP und SQL können als optionale, unabhängig wartbare Module hinzugefügt werden.
+APP und SQL können als optionale, unabhängig wartbare Module hinzugefügt werden und erzwingen nicht automatisch den Einsatz von AD DS.
 
 ---
 
@@ -905,7 +952,7 @@ Dauerhafte Betriebsplattform ist Azure DevOps.
 - [ ] `pipelines/azure-pipelines.yml` erstellen.
 - [ ] Preflight Stage erstellen.
 - [ ] Foundation Stage erstellen.
-- [ ] Identity Stage erstellen.
+- [ ] Identity Stage als bedingte Stage erstellen.
 - [ ] AVD Stage erstellen.
 - [ ] Workload Stage erstellen.
 - [ ] Configuration Stage erstellen.
@@ -930,9 +977,11 @@ Deployment kann kontrolliert und ohne langlebige Credentials aus Azure DevOps ge
 ### Automatisierte Prüfungen
 
 - [ ] alle erwarteten Ressourcen vorhanden.
+- [ ] nur die für das gewählte Identity-Modell erwarteten Identity-Ressourcen vorhanden.
 - [ ] Session Host im Host Pool registriert.
 - [ ] Session Host `Available`.
 - [ ] Domain Join korrekt (wenn ADDS).
+- [ ] kein unnötiger Domain Controller vorhanden (wenn Entra-only).
 - [ ] Entra Join korrekt (wenn Entra).
 - [ ] AVD Agent/Bootloader gesund.
 - [ ] Benutzer kann sich anmelden.
@@ -940,7 +989,7 @@ Deployment kann kontrolliert und ohne langlebige Credentials aus Azure DevOps ge
 - [ ] Profil bleibt nach Session-Host-Rebuild erhalten.
 - [ ] Start VM on Connect funktioniert.
 - [ ] Scaling Plan funktioniert.
-- [ ] Management-VM nach Deployment `Deallocated`.
+- [ ] Management-VM nach Deployment `Deallocated`, sofern sie im gewählten Szenario bereitgestellt wurde.
 - [ ] keine Public IPs vorhanden, sofern nicht ausdrücklich vorgesehen.
 - [ ] keine unerwarteten Enterprise-Kostenkomponenten aktiv.
 
@@ -952,8 +1001,8 @@ Mindestens folgende Szenarien müssen vor Release 1.0 getestet werden:
 
 | ID | Szenario | Status |
 |---|---|---|
-| T01 | Entra ID, 1 Session Host, ohne FSLogix | `[ ]` |
-| T02 | Entra ID, 1 Session Host, FSLogix/Entra Kerberos | `[ ]` |
+| T01 | Entra ID, 1 Session Host, **kein DC**, ohne FSLogix | `[ ]` |
+| T02 | Entra ID, 1 Session Host, **kein klassischer DC**, FSLogix/Entra Kerberos | `[ ]` |
 | T03 | Neue AD-Gesamtstruktur, 1 DC, 1 Session Host, FSLogix | `[ ]` |
 | T04 | Existing/Migrated AD DS, 1 Session Host, FSLogix | `[ ]` |
 | T05 | AD DS, 2 Session Hosts | `[ ]` |
@@ -984,6 +1033,7 @@ Diese Regeln sind Teil der Architektur und nicht nur Empfehlungen.
 ## Standardmäßig vermeiden
 
 - Azure Firewall,
+- Domain Controller ohne technische Notwendigkeit,
 - zwei DCs ohne Verfügbarkeitsanforderung,
 - zwei Session Hosts ohne Bedarf,
 - 24/7 laufende Management-VM,
@@ -995,13 +1045,14 @@ Diese Regeln sind Teil der Architektur und nicht nur Empfehlungen.
 
 ## Standardmäßig bevorzugen
 
+- Entra ID Only ohne DC, **wenn die Kundenanwendungen und technischen Anforderungen dies zulassen**,
 - 1 Session Host,
-- 1 DC bei kostenoptimiertem New-Forest-Szenario,
+- bei tatsächlich erforderlichem AD DS: 1 DC im kostenoptimierten New-Forest-Szenario,
 - ein VNet,
 - ein NAT Gateway für relevante Subnetze desselben VNets,
 - Start VM on Connect,
 - AVD Scaling Plan,
-- kleine deallokierte Management-VM,
+- kleine deallokierte Management-VM, sofern diese benötigt wird,
 - Standard-LRS für die Management-VM,
 - parametrische VM-Größen statt überdimensionierter Defaults.
 
@@ -1009,6 +1060,7 @@ Diese Regeln sind Teil der Architektur und nicht nur Empfehlungen.
 
 - [ ] Kostenmodell je Standardprofil erstellen.
 - [ ] monatliche Fixkosten von laufzeitabhängigen Kosten trennen.
+- [ ] Entra-only- und ADDS-Profile kostenmäßig getrennt ausweisen.
 - [ ] Kosten von optionalen Features separat ausweisen.
 - [ ] Beispielkalkulation für `<30 Mitarbeiter` erstellen.
 
@@ -1023,8 +1075,8 @@ Diese Regeln sind Teil der Architektur und nicht nur Empfehlungen.
 - [ ] kein offenes Inbound RDP als Standard.
 - [ ] Trusted Launch / Secure Boot / vTPM beibehalten, sofern Ziel-SKU/Image kompatibel.
 - [ ] Least-Privilege RBAC.
-- [ ] Domain-Join-Konto nicht pauschal als Domain Admin verwenden.
-- [ ] Backup/Restore für DC dokumentieren.
+- [ ] Domain-Join-Konto nur in ADDS-Szenarien und nicht pauschal als Domain Admin verwenden.
+- [ ] Backup/Restore für DC dokumentieren, wenn AD DS eingesetzt wird.
 - [ ] Kundenparameter dürfen keine Passwörter enthalten.
 
 ---
@@ -1045,8 +1097,9 @@ Die Microsoft-Prerequisites sollen soweit möglich nicht manuell abgearbeitet, s
 - [ ] AVD Enterprise Application Object ID ermitteln.
 - [ ] Netzwerk-/Subnetzrechte vorhanden.
 - [ ] erforderliche AVD-/Microsoft-Endpunkte erreichbar.
-- [ ] AD/DNS Health Check bei ADDS.
-- [ ] Join-Berechtigungen vorhanden.
+- [ ] Identity-Modell vor Deployment eindeutig gewählt.
+- [ ] AD/DNS Health Check nur bei ADDS.
+- [ ] Join-Berechtigungen nur bei ADDS prüfen.
 - [ ] AVD-Lizenzierung als Kunden-/Projektvoraussetzung dokumentieren.
 
 ---
@@ -1063,18 +1116,18 @@ Die Microsoft-Prerequisites sollen soweit möglich nicht manuell abgearbeitet, s
 | A006 | P0 | Management-VM Disk minimieren | `[ ]` | A003 |
 | A007 | P0 | Management-VM automatisch deallokieren | `[ ]` | A005/A006 |
 | A008 | P0 | Accelerator Script-/DSC-Versionen pinnen | `[ ]` | A003 |
-| A009 | P0 | New-Forest-DC-Modul | `[ ]` | A004 |
-| A010 | P0 | Accelerator mit Entra-only Profile testen | `[ ]` | A004/A005 |
+| A009 | P0 | optionales New-Forest-DC-Modul für ADDS | `[ ]` | A004 |
+| A010 | P0 | Accelerator mit Entra-only Profile **ohne DC** testen | `[ ]` | A004/A005 |
 | A011 | P0 | Accelerator mit ADDS/NewForest testen | `[ ]` | A009/A005 |
 | A012 | P1 | FSLogix KMU-Default festlegen | `[ ]` | A010/A011 |
-| A013 | P1 | APP-Modul | `[ ]` | A009 |
-| A014 | P1 | SQL-Modul | `[ ]` | A009 |
+| A013 | P1 | APP-Modul | `[ ]` | A004 |
+| A014 | P1 | SQL-Modul | `[ ]` | A004 |
 | A015 | P1 | Dependency Automation | `[ ]` | A013/A014 |
 | A016 | P1 | Azure DevOps Repository-Migration | `[ ]` | stabile Codebasis |
 | A017 | P1 | Azure Pipelines / WIF / Approvals | `[ ]` | A016 |
 | A018 | P1 | Post-Deployment-Tests | `[ ]` | A010/A011 |
 | A019 | P1 | Kostenmodell Standardprofile | `[ ]` | A010/A011/A012 |
-| A020 | P2 | Resilient-Profil mit 2 DCs/Hosts | `[ ]` | Release-Baseline |
+| A020 | P2 | Resilient-Profil mit 2 DCs/Hosts für entsprechende Anforderungen | `[ ]` | Release-Baseline |
 | A021 | P2 | Existing Hub/Hub-Spoke optional | `[ ]` | Release-Baseline |
 
 ---
@@ -1085,7 +1138,7 @@ Diese Punkte dürfen nicht stillschweigend entschieden werden.
 
 ## O001 – Entra Synchronisation
 
-**OFFEN**
+**OFFEN – nur für ADDS NewForest/MigrateExistingForest relevant**
 
 Für NewForest/MigrateExistingForest festlegen:
 
@@ -1156,6 +1209,7 @@ Keine harte Festlegung ohne Messwerte. Microsoft-Default und reale Kundenauslast
 Für die erste stabile Version nicht priorisieren:
 
 - Azure Firewall als Standard,
+- klassisches AD DS als Zwang für jeden Kunden,
 - komplexe Enterprise Hub-Spoke Landing Zone,
 - vollständige HA für alle Komponenten,
 - SQL Always On,
@@ -1219,11 +1273,13 @@ Regel:
 
 ---
 
-## 2026-08-07 – Ein DC als Cost-Optimized-Default zulässig
+## 2026-08-07 – Entra ID Only bevorzugen, AD DS nur bei Bedarf
 
-**Entscheidung:** Neue AD-Gesamtstruktur kann im KMU-Profil mit einem DC betrieben werden. Zwei DCs sind optionales Resilient-Profil.
+**Entscheidung:** Ein klassischer Domain Controller ist kein genereller Bestandteil der Zielarchitektur. Wenn Anwendungen und Dienste Entra-only unterstützen, wird kein DC bereitgestellt. AD DS wird als optionale Dependency eingesetzt, wenn insbesondere Branchensoftware klassisches AD voraussetzt.
 
-**Grund:** Kosten-/Verfügbarkeitsniveau muss zur restlichen Single-Instance-KMU-Architektur passen.
+Wenn AD DS benötigt wird und eine neue Gesamtstruktur erstellt werden muss, kann das kostenoptimierte KMU-Profil mit einem DC betrieben werden. Zwei DCs sind eine optionale resiliente Variante.
+
+**Grund:** Die kleinste technisch ausreichende Architektur soll gewählt werden. Ein nicht benötigter DC verursacht Kosten und Betriebsaufwand ohne Mehrwert.
 
 ---
 
@@ -1237,13 +1293,13 @@ Regel:
 
 **Entscheidung:** MSP Foundation erzeugt VNet/Subnetze. Accelerator läuft standardmäßig mit `createAvdVnet = false` gegen bestehende Subnetze.
 
-**Grund:** DC/Identity muss vor dem ADDS-AVD-Deployment existieren können und Netzwerk soll für weitere Workloads wiederverwendbar sein.
+**Grund:** Das Netzwerk wird unabhängig vom Identity-Modell benötigt. Bei ADDS kann der DC vor dem AVD-Deployment aufgebaut werden; bei Entra-only wird die Identity-/DC-Stufe übersprungen.
 
 ---
 
 ## 2026-08-07 – APP/SQL separat vom Accelerator
 
-**Entscheidung:** APP-/SQL-Server werden als separate Bicep-Module implementiert.
+**Entscheidung:** APP-/SQL-Server werden als separate Bicep-Module implementiert. Ihr Vorhandensein erzwingt nicht automatisch AD DS; die konkrete Branchensoftware bestimmt die Identity-Anforderung.
 
 ---
 
@@ -1251,7 +1307,7 @@ Regel:
 
 **Entscheidung:** Die Accelerator-Management-VM wird nach erfolgreicher Verwendung **nicht gelöscht**, sondern automatisch deallokiert.
 
-**Grund:** Fast keine laufenden Kosten, Domain Membership bleibt erhalten und die VM kann für spätere Storage-/FSLogix-Wartung erneut verwendet werden.
+**Grund:** Fast keine laufenden Kosten, eine vorhandene Domain Membership bleibt bei ADDS erhalten und die VM kann für spätere Storage-/FSLogix-Wartung erneut verwendet werden.
 
 ---
 
@@ -1272,13 +1328,13 @@ Regel:
 Release 1.0 ist erst erreicht, wenn mindestens folgende Bedingungen erfüllt sind:
 
 - [ ] Microsoft Accelerator ist mit kleinem dokumentiertem Patch-Delta integriert.
-- [ ] Foundation ist reproduzierbar und idempotent.
-- [ ] Entra-only Deployment funktioniert.
-- [ ] ADDS/NewForest Deployment mit einem DC funktioniert.
+- [ ] Foundation ist reproduzierbar, idempotent und unabhängig von einem DC deploybar.
+- [ ] Entra-only Deployment **ohne Domain Controller** funktioniert.
+- [ ] optionale ADDS/NewForest-Variante mit einem DC funktioniert.
 - [ ] Accelerator nutzt bestehendes MSP-VNet.
 - [ ] Management-VM ist klein dimensioniert.
 - [ ] Management-VM verwendet minimale sinnvolle Disk.
-- [ ] Management-VM wird nach Einsatz automatisch deallokiert.
+- [ ] Management-VM wird nach Einsatz automatisch deallokiert, sofern sie im gewählten Szenario bereitgestellt wird.
 - [ ] keine Azure Firewall im KMU-Default.
 - [ ] Start VM on Connect funktioniert.
 - [ ] AVD Scaling Plan funktioniert.
@@ -1287,7 +1343,7 @@ Release 1.0 ist erst erreicht, wenn mindestens folgende Bedingungen erfüllt sin
 - [ ] Azure DevOps Pipeline funktioniert mit Workload Identity Federation.
 - [ ] Production Approval ist eingerichtet.
 - [ ] Preflight und Post-Deployment Validation existieren.
-- [ ] Kostenprofil für einen typischen Kunden mit `<30 Mitarbeitern` ist dokumentiert.
+- [ ] Kostenprofile für einen typischen Entra-only- und einen ADDS-Kunden mit `<30 Mitarbeitern` sind dokumentiert.
 - [ ] README verweist auf diesen Umsetzungsplan.
 
 ---
