@@ -89,7 +89,7 @@ Details:
 |---|---|---|
 | O001 | Synchronisationsverfahren bei klassischem AD DS | `BESCHLOSSEN` – Cloud Sync Standard, Connect Sync Feature-Fallback |
 | O002 | FSLogix Default | `BESCHLOSSEN` – FSLogix Standard für produktive pooled AVD-Profile, dokumentierte Cost-Minimum-Ausnahme möglich |
-| O003 | Azure Files Tier | `OFFEN` – profilspezifisch statt global entscheiden |
+| O003 | Azure Files Storageklasse / Performance / Redundanz / Kosten | `OFFEN` – deployment-spezifische Entscheidungslogik; Profil liefert nur Default-Kandidaten |
 | O004 | Service Endpoint vs. Private Endpoint | `OFFEN` |
 | O005 | Monitoring Baseline | `OFFEN` |
 | O006 | Standard Session Host SKU / Größenstrategie | `OFFEN` |
@@ -124,17 +124,23 @@ Für `entra-small` gilt zusätzlich: nur unterstützter identity-basierter Azure
 
 ### NÄCHSTER SCHRITT
 
-> **O003 – Azure Files Tier profilspezifisch entscheiden.**
+> **O003 – Azure Files Storageklasse, Performance-, Redundanz- und Kostenmodell als deployment-spezifische Entscheidungslogik festlegen.**
 
-Dabei zwingend getrennt bewerten:
+Das Kunden-/Identity-Profil liefert dabei nur den Ausgangspunkt. Verbindlich mit zu bewerten sind mindestens:
 
 ```text
-adds-small
-entra-small
-EntraDS-Profil, falls produktisiert
+Identity/Auth-Modell
+Azure-Region
+Workload / Profilverhalten
+Benutzerzahl / Concurrency
+Kapazität / Wachstum
+IOPS / Throughput / Latenz
+Redundanzanforderung
+aktuelles Azure-Files-Provisionierungs-/Abrechnungsmodell
+monatliche Kosten
 ```
 
-Arbeitsannahme aus O002: `adds-small` dürfte mit Standard/HDD auskommen; bei `entra-small` + cloud-only Entra Kerberos kann die regionale Feature-Unterstützung – insbesondere in Germany West Central – ein SSD/Premium-Tier erzwingen. Diese Annahme ist bei O003 gegen den aktuellen Microsoft-Supportstand und die aktuellen Kosten zu verifizieren.
+Arbeitsannahme aus O002: `adds-small` dürfte mit HDD/Standard + LRS als CostOptimized-Ausgangspunkt auskommen; bei `entra-small` + cloud-only Entra Kerberos kann die regionale Feature-Unterstützung – insbesondere in Germany West Central – SSD/Premium erzwingen. Diese Annahmen sind bei O003 gegen den aktuellen Microsoft-Supportstand, die tatsächliche Last und die aktuellen Kosten zu verifizieren.
 
 Bis G0 geschlossen ist, werden keine dauerhaften Foundation-/Accelerator-/Profil-Implementierungen begonnen. Recherche und isolierte PoCs zur Entscheidungsfindung sind zulässig.
 
@@ -180,7 +186,7 @@ G9  OPTIONALE P2-FEATURES
 - [ ] A055 – O001–O010 vollständig schließen. `2/10 erledigt`
 - [x] O001 – Cloud Sync als Standard für klassisches AD DS; Connect Sync als begründeter Feature-Fallback.
 - [x] O002 – FSLogix als Standard-Profillösung; Cost-Minimum-Ausnahme möglich.
-- [ ] O003 – Azure Files Tier profilspezifisch festlegen.
+- [ ] O003 – Azure Files deployment-spezifische Storage-/Performance-/Redundanz-/Kostenlogik festlegen.
 - [ ] O004 – Azure Files Netzwerkzugriff.
 - [ ] O005 – Monitoring Baseline.
 - [ ] O006 – Session Host Größenstrategie.
@@ -337,7 +343,7 @@ adds-small
 - [ ] Single Profile Container als Default; kein Cloud Cache/ODFC ohne konkrete Anforderung.
 - [ ] A038 – Entra-only + FSLogix ausschließlich über unterstützten identity-basierten Azure-Files-Pfad; kein Storage-Key/`cmdkey`-Default. F020
 - [ ] A039 – FSLogix ACL-Isolation / #869. F019
-- [ ] Azure-Files-Tier gemäß O003 pro Profil anwenden.
+- [ ] Azure-Files-Konfiguration gemäß O003 deployment-spezifisch aus Profil, Identity, Region, Last, Performance, Redundanz und Kosten ableiten.
 - [ ] A040 – Monitoring DCR, falls gemäß O005 Bestandteil. F021
 - [ ] Availability Zones Default aus, sofern nicht anders entschieden.
 - [ ] DDoS Default aus.
