@@ -316,61 +316,190 @@ Bei deaktiviertem FSLogix muss das Onboarding ausdrücklich dokumentieren:
 
 ### Abhängigkeit zu O003
 
-O002 entscheidet **dass** FSLogix der Standard ist, aber noch nicht **welches Azure-Files-Tier** dafür verwendet wird.
+O002 entscheidet **dass** FSLogix der Standard ist, aber noch nicht **welche Azure-Files-Konfiguration** für ein konkretes Deployment gewählt wird.
 
-Die Analyse zu O002 hat gezeigt, dass O003 **nicht global mit nur einem Tier für alle Profile entschieden werden darf**.
+Die Analyse zu O002 hat gezeigt, dass O003 **weder global noch ausschließlich profilspezifisch** entschieden werden darf. Das Kunden-/Identity-Profil liefert einen Startwert, die finale Auswahl muss aber deployment-spezifisch anhand technischer und wirtschaftlicher Rahmenbedingungen erfolgen.
 
-Insbesondere ist bei O003 zwingend profilspezifisch zu prüfen:
+Beispiele für bereits bekannte Einflussfaktoren:
 
 ```text
 adds-small
-→ Standard/HDD dürfte für die typische kleine AVD-Last wirtschaftlich und technisch ausreichend sein
-→ muss in O003 noch final validiert werden
+→ HDD/Standard kann für typische kleine AVD-Lasten der CostOptimized-Ausgangspunkt sein
+→ finale Auswahl hängt zusätzlich von Region, Last, Concurrency, Redundanz und Kosten ab
 
 entra-small + cloud-only Entra Kerberos
-→ regionale Feature-Unterstützung kann bestimmte Azure-Files-Tiers erzwingen
+→ regionale Feature-Unterstützung kann bestimmte Azure-Files-Storageklassen erzwingen
 → Germany West Central ist nach aktuellem Prüfstand besonders zu beachten
 ```
 
 **Verbindliche Bearbeitungsregel für O003:**
 
-> Nicht „Standard vs. Premium“ abstrakt entscheiden, sondern pro Identity-/Kundenprofil die technisch unterstützten Tiers ermitteln und daraus den kostengünstigsten freigegebenen Default ableiten.
+> Nicht „Standard vs. Premium“ und auch nicht nur „pro Profil“ entscheiden. Das Profil liefert den Default-Kandidaten; die freizugebende Azure-Files-Konfiguration wird pro Deployment durch eine definierte Entscheidungslogik aus Identity/Auth, Region, Workload, Concurrency, Kapazität, Performance, Redundanz und Kosten bestimmt.
 
 ---
 
-## O003 – Azure Files Tier
+## O003 – Azure Files Storageklasse, Performance-, Redundanz- und Kostenmodell
 
 **Status:** `OFFEN`
 
-### Bereits aus O002 übernommene Prüfvorgabe
+### Ziel der Entscheidung
 
-O003 wird **profilspezifisch** entschieden und nicht als globaler Azure-Files-Default.
+O003 definiert **keinen einzigen globalen Azure-Files-Tier-Default**. Stattdessen wird eine standardisierte Entscheidungslogik festgelegt, die für jedes Kunden-Deployment die **kostengünstigste technisch geeignete und freigegebene Azure-Files-Konfiguration** bestimmt.
 
-Mindestens getrennt bewerten:
+Das Kunden-/Identity-Profil ist dabei ein wichtiger Startwert, aber nicht die einzige Entscheidungsachse.
+
+### Verbindliche Entscheidungslogik
+
+Für jedes Deployment müssen mindestens folgende Faktoren geprüft werden:
+
+1. **Kunden-/Identity-Profil**
+   - `adds-small`,
+   - `entra-small`,
+   - EntraDS-Profil, falls produktisiert,
+   - spätere weitere freigegebene Profile.
+
+2. **Identity-/Authentication-Modell**
+   - klassisches AD DS,
+   - Microsoft Entra Domain Services,
+   - Entra-only / cloud-only mit Entra Kerberos,
+   - daraus resultierende Azure-Files-Unterstützung und Einschränkungen.
+
+3. **Azure-Region**
+   - Feature-/SKU-Verfügbarkeit in der Zielregion,
+   - insbesondere Germany West Central,
+   - regionale Einschränkungen der gewählten Identity-/Auth-Kombination.
+
+4. **Workload und Profilverhalten**
+   - Office-/Standard-KMU-Last,
+   - Outlook-/OST-Größen,
+   - OneDrive-/M365-Nutzung,
+   - viele kleine Dateien / Metadaten-I/O,
+   - Login-Storms,
+   - Fachanwendungen oder andere I/O-intensive Nutzung.
+
+5. **Benutzerzahl und Concurrency**
+   - Gesamtzahl Benutzer,
+   - typische gleichzeitig aktive Benutzer,
+   - geplante Anzahl Session Hosts,
+   - erwartete gleichzeitige Profil-Mounts und Anmeldevorgänge.
+
+6. **Kapazität und Wachstum**
+   - erwartete Profilgröße pro Benutzer,
+   - Gesamtkapazität,
+   - Wachstumspuffer,
+   - späterer Ausbau auf weitere Benutzer/Hosts.
+
+7. **Performance**
+   - benötigte IOPS,
+   - Durchsatz,
+   - Latenz,
+   - aktuelles Azure-Files-Provisionierungsmodell und dessen separat dimensionierbare Performanceparameter.
+
+8. **Redundanz / Verfügbarkeitsanforderung**
+   - LRS als CostOptimized-Ausgangspunkt,
+   - ZRS/andere unterstützte Redundanzmodelle nur bei fachlicher oder technischer Anforderung,
+   - Verfügbarkeit der gewünschten Redundanz in Region und Storageklasse,
+   - Auswirkungen auf Kosten und Recovery-Ziel.
+
+9. **Abrechnungs-/Provisionierungsmodell**
+   - aktuelles Azure-Files-Modell zum Deploymentzeitpunkt,
+   - HDD vs. SSD,
+   - Provisioned-v2-/Pay-as-you-go-/sonstige verfügbare Modelle,
+   - Mindestkapazität, Basis-IOPS und Basisdurchsatz,
+   - Möglichkeit, Kapazität/IOPS/Throughput unabhängig zu dimensionieren.
+
+10. **Tatsächliche monatliche Kosten**
+    - Storagekapazität,
+    - provisionierte Performance,
+    - Transaktionen soweit relevant,
+    - Redundanz,
+    - zusätzliche Kostenfolgen aus Identity-/Regionsanforderungen,
+    - Vergleich zum nächstgünstigeren technisch möglichen Modell.
+
+### Auswahlprinzip
+
+```text
+Kundenprofil / Identity
+        +
+Region
+        +
+Workload / Concurrency
+        +
+Kapazität / Wachstum
+        +
+Performance
+        +
+Redundanz
+        +
+aktuelles Azure-Files-Modell
+        +
+Kosten
+        ↓
+kostengünstigste technisch geeignete
+und freigegebene Azure-Files-Konfiguration
+```
+
+### Rolle der Profile
+
+Profile liefern **Default-Kandidaten**, keine unveränderlichen Storage-SKUs.
+
+Beispiel:
 
 ```text
 adds-small
-entra-small
-EntraDS-Profil, falls produktisiert
+→ CostOptimized-Ausgangspunkt: HDD/Standard + LRS
+→ nur übernehmen, wenn Identity, Region, Performance, Concurrency und Recovery-Anforderung passen
+→ andernfalls begründet hochstufen/abweichen
 ```
 
-Dabei müssen jeweils geprüft werden:
+```text
+entra-small
+→ zuerst Identity-/Regionssupport für cloud-only Entra Kerberos prüfen
+→ technisch unterstützte Storageklasse bestimmen
+→ erst danach innerhalb der erlaubten Varianten kostengünstig dimensionieren
+```
 
-- technisch unterstützte Identity-/Authentication-Kombination,
-- regionale Unterstützung, insbesondere Germany West Central,
-- Standard/HDD vs. SSD/Premium bzw. aktuelles Azure-Files-Bereitstellungsmodell,
-- IOPS und Latenz,
-- Profilanzahl und typische Concurrency,
-- Mindestbereitstellung / Provisionierungsmodell,
-- tatsächliche monatliche Kosten,
-- spätere Skalierung oder Tierwechsel.
+### Arbeitsannahmen aus O002 – noch keine Entscheidung
 
-**Arbeitsannahme aus O002, noch keine Entscheidung:**
+- `adds-small`: HDD/Standard + LRS ist voraussichtlich der CostOptimized-Ausgangspunkt für typische kleine AVD-/FSLogix-Lasten.
+- `entra-small`: cloud-only Entra-Kerberos-Unterstützung kann regional SSD/Premium erzwingen; Germany West Central muss anhand des aktuellen Microsoft-Supportstands explizit geprüft werden.
+- Eine höhere Storageklasse wird **nicht allein aufgrund des Profilnamens** gewählt, sondern nur wenn technische, Performance-, Redundanz- oder Supportanforderungen sie begründen.
+- Umgekehrt darf ein günstigeres Modell nicht verwendet werden, wenn Identity-/Region-/Supportrestriktionen es ausschließen.
 
-- `adds-small`: Standard/HDD ist voraussichtlich der CostOptimized-Kandidat.
-- `entra-small`: cloud-only Entra-Kerberos-Unterstützung kann regional ein SSD/Premium-Tier erforderlich machen; für Germany West Central ist dies vor der Entscheidung anhand des aktuellen Microsoft-Supportstands zu verifizieren.
+### Abgrenzung zu O004
 
-**Entscheidung muss dokumentieren:** kostengünstigster unterstützter Default pro freigegebenem Profil + klare Schwelle/Ausnahme für höheres Tier.
+O003 entscheidet:
+
+```text
+Storageklasse
+Performance
+Kapazität
+Redundanz
+Provisionierungs-/Abrechnungsmodell
+```
+
+O004 entscheidet separat:
+
+```text
+Netzwerkzugriff auf Azure Files
+Service Endpoint + VNet Rules
+vs.
+Private Endpoint
+```
+
+Private Endpoint / Service Endpoint wird daher **nicht** in O003 vermischt.
+
+### Ergebnis, das O003 liefern muss
+
+Die finale O003-Entscheidung muss mindestens festlegen:
+
+- Default-Kandidat je freigegebenem Profil,
+- objektive Bedingungen für Abweichung/Hochstufung,
+- Mindest-/Sizing-Regeln für Kapazität, IOPS und Throughput,
+- CostOptimized-Redundanzdefault und Kriterien für höhere Redundanz,
+- verpflichtenden Regions-/Feature-Check vor Deployment,
+- Kostenvergleich als Bestandteil des Kunden-Onboardings/Preflights,
+- Verhalten, wenn der gewünschte günstige Storage in der Zielregion oder Identity-Konstellation nicht unterstützt wird.
 
 ---
 
