@@ -586,20 +586,30 @@ Pipeline
 
 ---
 
-## P0 – Management-VM Image-Referenz validieren
+## P0 – Management-VM auf aktuelles Windows-Server-2022-Marketplace-Offer umstellen
 
-**Status:** `[ ]` Prüfen  
+**Status:** `[ ]` OFFEN / umzusetzen  
 **Priorität:** P0
 
-Aktueller Accelerator verwendet für die Management-VM ein Windows Server 2022 Small-Disk-Image.
+Der Accelerator verwendet aktuell für die Management-VM das Windows Server 2022 Small-Disk-Image über das Legacy-Offer:
+
+```text
+Publisher: MicrosoftWindowsServer
+Offer:     WindowsServer
+SKU:       2022-datacenter-smalldisk-g2
+```
+
+Dieses Windows-Server-2022-Legacy-Offer ist für neue Deployments auf das aktuelle Windows-Server-2022-Marketplace-Offer zu migrieren.
 
 Aufgabe:
 
-- aktuelle Marketplace-Referenz in der Zielregion prüfen,
-- sicherstellen, dass Publisher/Offer/SKU weiterhin gültig und deploybar sind,
-- nur bei Bedarf auf eine aktuelle Referenz anpassen.
+- aktuelle Microsoft-Marketplace-Referenz verwenden,
+- Ziel-Offer `windowsserver2022` berücksichtigen,
+- exakte Ziel-SKU vor Umsetzung in Germany West Central prüfen,
+- `workload/variables/osMarketPlaceImages.json` entsprechend anpassen,
+- Deployment des Small-Disk-Images technisch validieren.
 
-**Akzeptanzkriterium:** Image kann in der Zielregion automatisiert ohne veraltete Marketplace-Abhängigkeit bereitgestellt werden.
+**Akzeptanzkriterium:** Management-VM wird über eine aktuelle, von Microsoft unterstützte Windows-Server-2022-Marketplace-Referenz bereitgestellt und ist nicht mehr vom Legacy-Offer `WindowsServer` abhängig.
 
 ---
 
@@ -616,29 +626,51 @@ Ein von uns getesteter Commit darf später nicht unbemerkt anderen Script-Code a
 
 Ziel:
 
-- Script-/Artifact-Basis-URI parametrierbar machen oder
-- auf einen konkreten getesteten Upstream-Commit / Release pinnen oder
-- Artefakte im Azure-DevOps-Deployment kontrolliert bereitstellen.
+- Script-/Artifact-Quelle vom öffentlichen Microsoft-`main` entkoppeln,
+- Runtime-Artefakte reproduzierbar mit einem MSP-Release verknüpfen,
+- bei Azure DevOps private Repositories unterstützen,
+- keine langlebigen GitHub-/Azure-DevOps-Tokens auf Ziel-VMs benötigen.
 
-**Akzeptanzkriterium:** Ein Release unseres MSP-Deployments führt reproduzierbar exakt die getesteten Script-Versionen aus.
+**OFFEN:** Endgültiges Runtime-Artifact-Verfahren festlegen. Bevorzugter Minimal-Patch-Kandidat ist derzeit: privates Repository → Azure DevOps Pipeline → versionierter privater Azure-Blob-Container → kurzlebige read-only User-Delegation-SAS. Managed Identity bleibt als später zu bewertende Alternative.
+
+**Akzeptanzkriterium:** Ein Release unseres MSP-Deployments führt reproduzierbar exakt die getesteten Script-Versionen aus, ohne dass das Quellcode-Repository öffentlich sein muss.
 
 ---
 
-## P1 – Deterministisches Naming / `utcNow()` auf Idempotenz prüfen
+## P0 – `utcNow()` aus persistentem Resource-Naming entfernen
 
-**Status:** `[ ]` Prüfen  
-**Priorität:** P1
+**Status:** `[ ]` OFFEN / umzusetzen  
+**Priorität:** P0
 
-Der Accelerator verwendet `utcNow()`/`time` in mehreren Deploymentnamen und teilweise bei der Ermittlung eindeutiger Namen.
+Der Accelerator verwendet aktuell:
 
-Aufgabe:
+```bicep
+param time string = utcNow()
+```
 
-- ermitteln, welche Ressourcen bei einem Re-Deployment tatsächlich neue Namen erhalten würden,
-- What-If mit identischen Parametern mehrfach ausführen,
-- nur dort patchen, wo Idempotenz oder Wiederholbarkeit betroffen ist,
-- stabile Seeds aus Subscription/Customer/Environment bevorzugen.
+und bindet `time` unter anderem in `uniqueString(...)` ein. Die daraus erzeugten Suffixe werden für persistente Ressourcennamen wie Key Vaults sowie FSLogix-/App-Attach-Storage-Accounts verwendet.
 
-**Akzeptanzkriterium:** Erneutes Deployment mit identischen Parametern erzeugt keine unbeabsichtigten zusätzlichen persistenten Ressourcen.
+Dadurch kann ein erneutes Deployment mit ansonsten identischen Parametern einen anderen Naming-Seed und damit andere persistente Ressourcennamen erzeugen.
+
+Ziel:
+
+- `utcNow()` aus allen persistenten Ressourcennamen entfernen,
+- einen deterministischen Naming-Seed aus stabilen Werten wie Subscription, Deployment Prefix, Environment und Region verwenden,
+- Zeitstempel nur dort behalten, wo sie tatsächlich sinnvoll sind, z. B. Deploymentnamen oder `CreationTimeUTC`-Tags,
+- mehrfaches What-If/Re-Deployment mit identischen Parametern ohne neue persistente Ressourcennamen ermöglichen.
+
+Beispielprinzip:
+
+```bicep
+var namingSeed = uniqueString(
+  avdWorkloadSubsId,
+  deploymentPrefix,
+  deploymentEnvironment,
+  avdSessionHostLocation
+)
+```
+
+**Akzeptanzkriterium:** Erneutes Deployment mit identischen Parametern erzeugt keine unbeabsichtigten neuen Key Vaults, Storage Accounts oder sonstigen persistenten Ressourcen aufgrund eines neuen Zeitstempels.
 
 ---
 
@@ -791,9 +823,9 @@ Sowohl ein vollständiges Entra-only-Deployment ohne DC als auch AD-abhängige A
 - [ ] `Standard_B2als_v2` als Kandidat technisch validieren.
 - [ ] Management-VM OS-Disk minimieren.
 - [ ] automatische Deallocation implementieren.
-- [ ] Image-Referenz validieren.
-- [ ] externe Script-/DSC-Versionen pinnen bzw. parametrieren.
-- [ ] `utcNow()`-/Naming-Idempotenz prüfen.
+- [ ] Windows-Server-2022-Legacy-Offer auf aktuelle Marketplace-Referenz umstellen.
+- [ ] externe Script-/DSC-Versionen pinnen bzw. über private Runtime-Artefakte bereitstellen.
+- [ ] `utcNow()` aus persistentem Resource-Naming entfernen und deterministischen Naming-Seed einführen.
 - [ ] Patch-Diff gegen Microsoft-Upstream dokumentieren.
 - [ ] Bicep Build durchführen.
 - [ ] What-If durchführen.
@@ -801,7 +833,7 @@ Sowohl ein vollständiges Entra-only-Deployment ohne DC als auch AD-abhängige A
 
 ### Exit-Kriterium
 
-Der Accelerator bleibt funktional, die Management-VM verursacht im Normalbetrieb keine Compute-Kosten und unser Patch-Delta bleibt klein.
+Der Accelerator bleibt funktional, die Management-VM verursacht im Normalbetrieb keine Compute-Kosten, persistente Ressourcennamen sind deterministisch und unser Patch-Delta bleibt klein.
 
 ---
 
@@ -957,6 +989,10 @@ Dauerhafte Betriebsplattform ist Azure DevOps.
 - [ ] Workload Stage erstellen.
 - [ ] Configuration Stage erstellen.
 - [ ] Validation Stage erstellen.
+- [ ] Runtime-Skripte/DSC-Artefakte aus dem privaten Repository versioniert paketieren.
+- [ ] Pipeline Artifact für interne Nachvollziehbarkeit/Stage-Übergabe veröffentlichen.
+- [ ] Runtime-Artefakte für Ziel-VMs in Azure Storage veröffentlichen; Pipeline Artifact nicht direkt als VM-Downloadquelle verwenden.
+- [ ] endgültiges Zugriffsmodell für Runtime-Artefakte gemäß O007 umsetzen.
 - [ ] Production Environment mit Approval Gate einrichten.
 - [ ] PR Validation einrichten.
 - [ ] Bicep Lint ausführen.
@@ -968,7 +1004,7 @@ Dauerhafte Betriebsplattform ist Azure DevOps.
 
 ### Exit-Kriterium
 
-Deployment kann kontrolliert und ohne langlebige Credentials aus Azure DevOps gestartet werden.
+Deployment kann kontrolliert und ohne langlebige Credentials aus Azure DevOps gestartet werden. Das Azure-Repos-Repository kann privat bleiben; Ziel-VMs benötigen keinen direkten Zugriff auf Azure Repos.
 
 ---
 
@@ -1078,6 +1114,8 @@ Diese Regeln sind Teil der Architektur und nicht nur Empfehlungen.
 - [ ] Domain-Join-Konto nur in ADDS-Szenarien und nicht pauschal als Domain Admin verwenden.
 - [ ] Backup/Restore für DC dokumentieren, wenn AD DS eingesetzt wird.
 - [ ] Kundenparameter dürfen keine Passwörter enthalten.
+- [ ] keine langlebigen GitHub-/Azure-DevOps-PATs auf Ziel-VMs für Runtime-Script-Downloads verwenden.
+- [ ] SAS-haltige Runtime-URLs ausschließlich in geschützten Extension-/Pipeline-Parametern behandeln, falls SAS als Artifact-Zugriff gewählt wird.
 
 ---
 
@@ -1115,7 +1153,7 @@ Die Microsoft-Prerequisites sollen soweit möglich nicht manuell abgearbeitet, s
 | A005 | P0 | Management-VM Größe entkoppeln | `[ ]` | A003 |
 | A006 | P0 | Management-VM Disk minimieren | `[ ]` | A003 |
 | A007 | P0 | Management-VM automatisch deallokieren | `[ ]` | A005/A006 |
-| A008 | P0 | Accelerator Script-/DSC-Versionen pinnen | `[ ]` | A003 |
+| A008 | P0 | Accelerator Script-/DSC-Versionen pinnen / private Runtime-Artefakte | `[ ]` | A003 |
 | A009 | P0 | optionales New-Forest-DC-Modul für ADDS | `[ ]` | A004 |
 | A010 | P0 | Accelerator mit Entra-only Profile **ohne DC** testen | `[ ]` | A004/A005 |
 | A011 | P0 | Accelerator mit ADDS/NewForest testen | `[ ]` | A009/A005 |
@@ -1129,6 +1167,8 @@ Die Microsoft-Prerequisites sollen soweit möglich nicht manuell abgearbeitet, s
 | A019 | P1 | Kostenmodell Standardprofile | `[ ]` | A010/A011/A012 |
 | A020 | P2 | Resilient-Profil mit 2 DCs/Hosts für entsprechende Anforderungen | `[ ]` | Release-Baseline |
 | A021 | P2 | Existing Hub/Hub-Spoke optional | `[ ]` | Release-Baseline |
+| A022 | P0 | Windows-Server-2022-Legacy-Offer der Management-VM ersetzen | `[ ]` | A003 |
+| A023 | P0 | `utcNow()` aus persistentem Resource-Naming entfernen | `[ ]` | A003 |
 
 ---
 
@@ -1201,6 +1241,46 @@ Festlegen, welche AVD-/VM-/Guest-Monitoring-Komponenten zwingend in jedes KMU-Pr
 **OFFEN**
 
 Keine harte Festlegung ohne Messwerte. Microsoft-Default und reale Kundenauslastung vergleichen.
+
+---
+
+## O007 – Runtime-Artefakte bei privatem Repository
+
+**OFFEN**
+
+Das Quellcode-Repository soll nach der Migration zu Azure DevOps privat betrieben werden können. Ziel-VMs sollen nicht direkt auf Azure Repos/GitHub zugreifen und keine langlebigen PATs erhalten.
+
+Zu bewerten:
+
+```text
+A) Azure Storage + kurzlebige read-only User-Delegation-SAS
+B) Azure Storage + Managed Identity
+C) separates öffentliches Runtime-Script-Repository
+```
+
+Aktueller Favorit für den ersten minimalen Accelerator-Patch ist **A)**:
+
+```text
+Private Azure Repos
+→ Azure Pipeline
+→ versionierte Runtime-Artefakte
+→ privater Azure Blob Container
+→ kurzlebige read-only User-Delegation-SAS
+→ Custom Script Extension / DSC
+```
+
+Begründung:
+
+- keine Veröffentlichung des Quellcode-Repositories nötig,
+- kein langlebiger PAT auf der VM,
+- SAS kann über Workload Identity Federation/Entra erzeugt werden,
+- read-only und kurze Gültigkeit,
+- bestehender DSC-Download per `Invoke-WebRequest` kann ohne größeren Script-Umbau weiterverwendet werden,
+- geringerer Patch-Umfang als ein vollständiger Managed-Identity-Umbau aller verschachtelten Downloads.
+
+Bei SAS-Verwendung muss `fileUris` der Session-Host-Custom-Script-Extension aus öffentlichen `settings` in `protectedSettings` verschoben werden.
+
+Managed Identity ist sicherheitstechnisch attraktiv, erfordert im aktuellen Accelerator jedoch zusätzliche Änderungen, insbesondere für verschachtelte Downloads innerhalb der PowerShell-/DSC-Skripte.
 
 ---
 
@@ -1335,6 +1415,9 @@ Release 1.0 ist erst erreicht, wenn mindestens folgende Bedingungen erfüllt sin
 - [ ] Management-VM ist klein dimensioniert.
 - [ ] Management-VM verwendet minimale sinnvolle Disk.
 - [ ] Management-VM wird nach Einsatz automatisch deallokiert, sofern sie im gewählten Szenario bereitgestellt wird.
+- [ ] Management-VM verwendet aktuelles Windows-Server-2022-Marketplace-Offer.
+- [ ] persistente Resource-Namen sind unabhängig von `utcNow()` deterministisch.
+- [ ] Runtime-Artefakte sind versionsfest und erfordern kein öffentliches Quellcode-Repository.
 - [ ] keine Azure Firewall im KMU-Default.
 - [ ] Start VM on Connect funktioniert.
 - [ ] AVD Scaling Plan funktioniert.
