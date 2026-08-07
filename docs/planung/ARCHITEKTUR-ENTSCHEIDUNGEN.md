@@ -198,31 +198,76 @@ GitHub ist nur noch temporäre Migrationsquelle. Nach validierter Migration soll
 
 # 3. Offene Architekturentscheidungen – Pflicht vor Implementierung
 
-## O001 – Entra-Synchronisation bei ADDS
+## O001 – Synchronisationsverfahren bei klassischem AD DS
 
 **Status:** OFFEN
+
+Diese Entscheidung gilt **ausschließlich für klassisches Active Directory Domain Services**, also insbesondere:
+
+```text
+NewForest
+MigrateExistingForest
+ExistingAzureForest
+```
+
+wenn Benutzer-/Gruppenidentitäten zwischen klassischem AD DS und Microsoft Entra ID synchronisiert werden sollen.
 
 Zu entscheiden:
 
 ```text
-Entra Cloud Sync
+Microsoft Entra Cloud Sync
 vs.
-Entra Connect Sync
+Microsoft Entra Connect Sync
 ```
 
-Gilt nur für NewForest/MigrateExistingForest, wenn eine Synchronisierung nach Entra ID erforderlich ist.
+### Nicht Teil von O001 – Microsoft Entra Domain Services
+
+Bei `EntraDS`/Microsoft Entra Domain Services wird **kein eigener Cloud-Sync- oder Connect-Sync-Agent für die Managed Domain betrieben**.
+
+Das Zielmodell ist dort:
+
+```text
+Microsoft Entra ID
+        ↓
+Microsoft-managed Synchronisierung
+        ↓
+Microsoft Entra Domain Services
+```
+
+Eine APP01 oder andere Member-Server-VM wird daher **nicht allein für Entra Connect Sync gegen die Managed Domain benötigt**.
+
+Wenn während einer Migration zusätzlich noch klassisches On-Prem-/Azure-AD-DS vorhanden ist, kann O001 weiterhin für die Synchronisierung **dieses klassischen AD DS nach Entra ID** relevant sein. Entra Domain Services synchronisiert anschließend aus Entra ID in die Managed Domain.
+
+### Betriebsmodell bei klassischem AD DS
+
+Eine Entscheidung für Entra Connect Sync bedeutet in unserem KMU-Modell **nicht automatisch eine zusätzliche Sync-VM**.
+
+Wenn ein klassischer DC vorhanden ist, kann das gewählte Sync-Verfahren – sofern technisch unterstützt und für den Kunden sinnvoll – auf vorhandener Infrastruktur betrieben werden, z. B.:
+
+```text
+DC01
+├── AD DS
+├── DNS
+└── Entra Sync-Komponente
+```
+
+Eine zusätzliche Server-VM wird nur vorgesehen, wenn technische, betriebliche oder Verfügbarkeitsanforderungen dies tatsächlich erfordern.
 
 Bewertungskriterien:
 
-- Betrieb auf einem einzelnen Azure-DC vs. separatem Server,
+- benötigter Featureumfang,
+- Hybrid Entra Join / Device-Synchronisation,
+- Password-/Group-/Exchange-Writeback-Anforderungen,
+- komplexe Sync Rules / Filtering,
+- Betrieb auf vorhandener DC-/Server-Infrastruktur,
 - HA-/Recovery-Anforderungen,
-- benötigte Features,
-- Wartungsaufwand,
+- Wartungs-/Updateaufwand,
 - Microsoft-Zielrichtung,
-- Kosten,
-- Automatisierbarkeit.
+- Automatisierbarkeit,
+- spätere Migration/Wechselbarkeit,
+- Kosten nur dort, wo tatsächlich zusätzliche Infrastruktur erforderlich wäre.
 
-**Entscheidung muss dokumentieren:** Standardverfahren + Ausnahmen.
+**Entscheidung muss dokumentieren:** Standardverfahren für klassisches AD DS + klare Ausnahmefälle, in denen das alternative Verfahren eingesetzt wird.
 
 ---
 
