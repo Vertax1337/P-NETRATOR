@@ -33,6 +33,7 @@ Die Detaildokumente sind verbindlich für technische Begründungen, Findings, En
 | [`docs/planung/AZURE-DEVOPS.md`](docs/planung/AZURE-DEVOPS.md) | Azure-DevOps-Migration, WIF, Pipelines, Runtime-Artefakte, GitHub-Stilllegung |
 | [`docs/planung/ACCELERATOR-DEEP-DIVE.md`](docs/planung/ACCELERATOR-DEEP-DIVE.md) | Accelerator-Findings F001–F039 inkl. Auswirkungen und Maßnahmen |
 | [`docs/planung/VALIDIERUNG-UND-RELEASE.md`](docs/planung/VALIDIERUNG-UND-RELEASE.md) | Preflight, Testmatrix, Security-/Kosten-Guardrails, Release-DoD |
+| [`docs/planung/KUNDEN-ONBOARDING.md`](docs/planung/KUNDEN-ONBOARDING.md) | operativer Standardprozess vom Kunden-Assessment bis Deployment, Validierung und Betriebsübergabe |
 
 ## Pflege-Regel
 
