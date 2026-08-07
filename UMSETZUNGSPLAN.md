@@ -77,7 +77,7 @@ Zielgruppe:
 ## Aktives Gate: G0 – Architekturentscheidungen
 
 **Status: OFFEN / BLOCKIERT IMPLEMENTIERUNG**  
-**Fortschritt:** `1/10` Architekturentscheidungen geschlossen.
+**Fortschritt:** `2/10` Architekturentscheidungen geschlossen.
 
 Alle O001–O010 müssen vor der eigentlichen Implementierung geschlossen sein.
 
@@ -88,8 +88,8 @@ Details:
 | Entscheidung | Thema | Status |
 |---|---|---|
 | O001 | Synchronisationsverfahren bei klassischem AD DS | `BESCHLOSSEN` – Cloud Sync Standard, Connect Sync Feature-Fallback |
-| O002 | FSLogix Default | `OFFEN` |
-| O003 | Azure Files Tier | `OFFEN` |
+| O002 | FSLogix Default | `BESCHLOSSEN` – FSLogix Standard für produktive pooled AVD-Profile, dokumentierte Cost-Minimum-Ausnahme möglich |
+| O003 | Azure Files Tier | `OFFEN` – profilspezifisch statt global entscheiden |
 | O004 | Service Endpoint vs. Private Endpoint | `OFFEN` |
 | O005 | Monitoring Baseline | `OFFEN` |
 | O006 | Standard Session Host SKU / Größenstrategie | `OFFEN` |
@@ -100,18 +100,41 @@ Details:
 
 ### O001 Kurzentscheidung
 
-Für klassisches AD DS gilt:
-
 ```text
+Klassisches AD DS:
 Cloud Sync = MSP-Standard
-Connect Sync = Ausnahme, wenn konkrete Cloud-Sync-Funktionslücke vorliegt
+Connect Sync = Ausnahme bei konkreter Cloud-Sync-Funktionslücke
 ```
 
-Microsoft Entra Domain Services ist von O001 ausgenommen; gegen die Managed Domain wird kein eigener Connect-/Cloud-Sync-Agent betrieben.
+Entra Domain Services ist von O001 ausgenommen.
+
+### O002 Kurzentscheidung
+
+```text
+Produktive pooled AVD-Profile:
+FSLogix Profile Container = Standard
+auch bei 1 Session Host
+
+Single Container = Standard
+Cloud Cache = kein Default
+separater ODFC = kein Default
+```
+
+Für `entra-small` gilt zusätzlich: nur unterstützter identity-basierter Azure-Files-Pfad; Storage Account Key + `cmdkey` wird nicht zum MSP-Default. Eine dokumentierte Cost-Minimum-/Persistent-Single-Host-Ausnahme darf FSLogix deaktivieren.
 
 ### NÄCHSTER SCHRITT
 
-> **O002 – FSLogix Default entscheiden.**
+> **O003 – Azure Files Tier profilspezifisch entscheiden.**
+
+Dabei zwingend getrennt bewerten:
+
+```text
+adds-small
+entra-small
+EntraDS-Profil, falls produktisiert
+```
+
+Arbeitsannahme aus O002: `adds-small` dürfte mit Standard/HDD auskommen; bei `entra-small` + cloud-only Entra Kerberos kann die regionale Feature-Unterstützung – insbesondere in Germany West Central – ein SSD/Premium-Tier erzwingen. Diese Annahme ist bei O003 gegen den aktuellen Microsoft-Supportstand und die aktuellen Kosten zu verifizieren.
 
 Bis G0 geschlossen ist, werden keine dauerhaften Foundation-/Accelerator-/Profil-Implementierungen begonnen. Recherche und isolierte PoCs zur Entscheidungsfindung sind zulässig.
 
@@ -154,10 +177,10 @@ G9  OPTIONALE P2-FEATURES
 
 **Priorität: P0 / zuerst**
 
-- [ ] A055 – O001–O010 vollständig schließen. `1/10 erledigt`
+- [ ] A055 – O001–O010 vollständig schließen. `2/10 erledigt`
 - [x] O001 – Cloud Sync als Standard für klassisches AD DS; Connect Sync als begründeter Feature-Fallback.
-- [ ] O002 – FSLogix Default.
-- [ ] O003 – Azure Files Tier.
+- [x] O002 – FSLogix als Standard-Profillösung; Cost-Minimum-Ausnahme möglich.
+- [ ] O003 – Azure Files Tier profilspezifisch festlegen.
 - [ ] O004 – Azure Files Netzwerkzugriff.
 - [ ] O005 – Monitoring Baseline.
 - [ ] O006 – Session Host Größenstrategie.
@@ -309,9 +332,12 @@ adds-small
 - [ ] VM-Größe parametrierbar.
 - [ ] Start VM on Connect gemäß O008.
 - [ ] A037 – ausgewähltes Power Management validieren.
-- [ ] A012 – FSLogix-Default aus O002 umsetzen.
-- [ ] A038 – Entra-only + FSLogix ohne Storage-Key-Default, falls vorgesehen. F020
+- [ ] A012 – O002 umsetzen: FSLogix Profile Container als Standard für produktive pooled Profile.
+- [ ] dokumentierte Cost-Minimum-/Persistent-Single-Host-Ausnahme für FSLogix unterstützen.
+- [ ] Single Profile Container als Default; kein Cloud Cache/ODFC ohne konkrete Anforderung.
+- [ ] A038 – Entra-only + FSLogix ausschließlich über unterstützten identity-basierten Azure-Files-Pfad; kein Storage-Key/`cmdkey`-Default. F020
 - [ ] A039 – FSLogix ACL-Isolation / #869. F019
+- [ ] Azure-Files-Tier gemäß O003 pro Profil anwenden.
 - [ ] A040 – Monitoring DCR, falls gemäß O005 Bestandteil. F021
 - [ ] Availability Zones Default aus, sofern nicht anders entschieden.
 - [ ] DDoS Default aus.
@@ -370,7 +396,7 @@ Dieses Register ist die Statusquelle.
 |---|---:|---|---|---|
 | A001 | P0 | Accelerator importieren | `[x]` | Vorarbeit |
 | A002 | P0 | Master-Umsetzungsplan anlegen | `[x]` | Vorarbeit |
-| A055 | P0 | O001–O010 vollständig schließen | `[ ]` – 1/10 | G0 |
+| A055 | P0 | O001–O010 vollständig schließen | `[ ]` – 2/10 | G0 |
 | A016 | P0 | Repository nach Azure Repos migrieren | `[ ]` | G1 |
 | A017 | P0 | Azure Pipelines / WIF / Approvals | `[ ]` | G1 |
 | A056 | P0 | eigenes GitHub-Repo stilllegen/archivieren | `[ ]` | G1 |
@@ -398,7 +424,7 @@ Dieses Register ist die Statusquelle.
 | A031 | P0 | Management-VM Firewall-/Local-Admin-State | `[ ]` | G5 |
 | A032 | P0 | Storage-DSC State Checks/Retry idempotent | `[ ]` | G5 |
 | A036 | P1* | Scaling Plan vollständig parametrieren | `[ ]` | G5/G6 |
-| A012 | P1* | FSLogix KMU-Default umsetzen | `[ ]` | G6 |
+| A012 | P1* | FSLogix KMU-Default gemäß O002 umsetzen | `[ ]` | G6 |
 | A037 | P0/P1 | Power Management im 1-Host-Profil validieren | `[ ]` | G6 |
 | A038 | P0/P1 | Entra-only + FSLogix ohne Storage-Key-Default | `[ ]` | G6 |
 | A039 | P0 | FSLogix ACL-Isolation / #869 | `[ ]` | G6 |
@@ -436,8 +462,11 @@ Dieses Register ist die Statusquelle.
 - kein genereller DC-Zwang.
 - Entra-only ist vollwertiges Zielmodell.
 - klassisches AD DS nur bei Bedarf; CostOptimized darf mit einem DC arbeiten.
-- **bei klassischem AD DS: Entra Cloud Sync Standard, Connect Sync nur bei konkreter Funktionslücke.**
+- bei klassischem AD DS: Entra Cloud Sync Standard, Connect Sync nur bei konkreter Funktionslücke.
 - Entra Domain Services betreibt keinen eigenen O001-Sync-Agent gegen die Managed Domain.
+- **FSLogix Profile Container ist Standard für produktive pooled AVD-Profile, auch bei einem Host.**
+- **Single Container ist Standard; Cloud Cache und separater ODFC sind keine Defaults.**
+- **Entra-only + FSLogix nur über unterstützten identity-basierten Azure-Files-Pfad; kein Storage-Key/`cmdkey`-Default.**
 - On-Prem-Server ist nur Migrationsquelle.
 - Single VNet als KMU-Default.
 - Foundation vor Accelerator; `createAvdVnet = false`.
