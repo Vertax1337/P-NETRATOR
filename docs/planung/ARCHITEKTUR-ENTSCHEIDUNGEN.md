@@ -166,7 +166,7 @@ die Cloud Sync nicht unterstützt?
  = Standard            = Feature-Fallback
 ```
 
-Microsoft Entra Connect Sync bleibt vollständig unterstützt, wird aber nur eingesetzt, wenn eine **konkrete technische Kundenanforderung** Cloud Sync ausschließt.
+Microsoft Entra Connect Sync bleibt unterstützt, wird aber nur eingesetzt, wenn eine **konkrete technische Kundenanforderung** Cloud Sync ausschließt.
 
 Die Verwendung von Connect Sync muss im Kunden-Onboarding mit dem ausschlaggebenden Feature dokumentiert werden.
 
@@ -179,7 +179,7 @@ Vor Einsatz prüfen, ob mindestens eine tatsächlich benötigte Funktion vorlieg
 - Topologien oder Objektmengen außerhalb der Cloud-Sync-Grenzen,
 - andere Connect-spezifische Funktionen, die Cloud Sync zum jeweiligen Projektzeitpunkt nicht unterstützt.
 
-Die Featurematrix wird beim Kunden-Onboarding gegen den **aktuellen Microsoft-Stand** geprüft; die obige Liste ist keine dauerhaft abschließende Produktmatrix.
+Die Featurematrix wird beim Kunden-Onboarding gegen den **aktuellen Microsoft-Stand** geprüft; die Liste ist keine dauerhaft abschließende Produktmatrix.
 
 ### Betriebsmodell bei klassischem AD DS
 
@@ -225,26 +225,116 @@ Für jeden klassischen ADDS-Kunden:
 
 ## O002 – FSLogix Default
 
-**Status:** `OFFEN`
+**Status:** `BESCHLOSSEN`  
+**Entschieden:** 2026-08-07
 
-Zu entscheiden:
+### Entscheidung
+
+**FSLogix Profile Container ist die Standard-Profillösung für produktive pooled AVD-Deployments – auch bei nur einem Session Host.**
+
+Ziel ist die Entkopplung des persistenten Benutzerzustands vom Lebenszyklus des Session Hosts:
 
 ```text
-FSLogix standardmäßig aktiv
-vs.
-FSLogix bewusst optional
+Session Host = austauschbarer Compute
+Benutzerprofil = persistenter Zustand außerhalb der VM
 ```
 
-Bewertung:
+Damit bleiben Rebuild, Replacement und spätere Skalierung möglich, ohne lokale Benutzerprofile an eine konkrete Session-Host-VM zu binden.
 
-- 1-Host-KMU vs. 2+ Hosts,
-- Rebuild-/Replace-Fähigkeit,
-- Benutzerprofilpersistenz,
-- Storage-/Identity-Komplexität,
-- Kosten,
-- OneDrive-/Known-Folder-Nutzung.
+### Standardkonfiguration
 
-**Entscheidung muss dokumentieren:** Default je Profil (`entra-small`, `adds-small`) und Abweichungsregel.
+```text
+FSLogix Profile Container       = ON
+Azure Files                     = Ziel-Storage
+Single Profile Container        = ON
+separater ODFC Container        = OFF als Default
+FSLogix Cloud Cache             = OFF als Default
+```
+
+Ein normaler FSLogix Profile Container ist damit unser Standard. Zusätzliche ODFC-Container oder Cloud Cache werden nur bei konkreter fachlicher/technischer Notwendigkeit aktiviert.
+
+### Profilregeln
+
+#### `adds-small`
+
+```text
+FSLogix = ON
+```
+
+FSLogix ist Standard, auch bei einem Session Host.
+
+#### `entra-small`
+
+FSLogix ist ebenfalls der **technische Zieldefault**, darf aber nur aktiviert werden, wenn in der gewählten Azure-Region ein **unterstützter identity-basierter Azure-Files-Pfad** für das konkrete Entra-only-/cloud-only-Szenario verfügbar ist und dessen Kosten akzeptiert wurden.
+
+Der im aktuellen Accelerator vorhandene Pfad:
+
+```text
+Storage Account Key
++ cmdkey
+```
+
+wird **nicht als MSP-Default** verwendet.
+
+Wenn identity-basierter Azure-Files-Zugriff für das konkrete Profil/Region/Supportmodell nicht sinnvoll oder nicht unterstützt ist, wird nicht automatisch auf Storage Account Key zurückgefallen. Stattdessen wird entweder:
+
+- FSLogix für dieses Sonderprofil deaktiviert,
+- die Architektur bewusst geändert,
+- oder das Kundenprofil nicht in dieser Form freigegeben.
+
+### Zulässige Ausnahme – Cost-Minimum / Persistent Single Host
+
+FSLogix bleibt parametrierbar und darf für einen bewusst gewählten Sonderfall deaktiviert werden, wenn beispielsweise:
+
+- genau ein persistenter Session Host betrieben wird,
+- kein Host-Replacement-/Immutable-Modell vorgesehen ist,
+- Profilbindung an die VM bewusst akzeptiert wird,
+- keine fachliche Anforderung dagegen spricht,
+- die Folgen für OneDrive/VDI, Rebuild und spätere Skalierung dokumentiert und akzeptiert sind,
+- Kostenminimierung ausdrücklich Vorrang hat.
+
+Das ist **kein Standardprofil**, sondern eine dokumentierte Ausnahme.
+
+### Onboarding-Regel
+
+Bei jedem Kunden wird festgehalten:
+
+```text
+FSLogix = Standard / Ausnahme deaktiviert
+Storage-/Identity-Modell
+Region
+Support-/Verfügbarkeitsprüfung
+Kostenfolge
+```
+
+Bei deaktiviertem FSLogix muss das Onboarding ausdrücklich dokumentieren:
+
+- Profile liegen lokal auf dem Session Host,
+- Host-Rebuild erhält die Benutzerprofile nicht automatisch,
+- spätere Skalierung kann eine Profilmigration erfordern,
+- non-persistent VDI-/OneDrive-Anforderungen müssen separat bewertet werden.
+
+### Abhängigkeit zu O003
+
+O002 entscheidet **dass** FSLogix der Standard ist, aber noch nicht **welches Azure-Files-Tier** dafür verwendet wird.
+
+Die Analyse zu O002 hat gezeigt, dass O003 **nicht global mit nur einem Tier für alle Profile entschieden werden darf**.
+
+Insbesondere ist bei O003 zwingend profilspezifisch zu prüfen:
+
+```text
+adds-small
+→ Standard/HDD dürfte für die typische kleine AVD-Last wirtschaftlich und technisch ausreichend sein
+→ muss in O003 noch final validiert werden
+
+entra-small + cloud-only Entra Kerberos
+→ regionale Feature-Unterstützung kann bestimmte Azure-Files-Tiers erzwingen
+→ Germany West Central ist nach aktuellem Prüfstand besonders zu beachten
+```
+
+**Verbindliche Bearbeitungsregel für O003:**
+
+> Nicht „Standard vs. Premium“ abstrakt entscheiden, sondern pro Identity-/Kundenprofil die technisch unterstützten Tiers ermitteln und daraus den kostengünstigsten freigegebenen Default ableiten.
 
 ---
 
@@ -252,15 +342,35 @@ Bewertung:
 
 **Status:** `OFFEN`
 
+### Bereits aus O002 übernommene Prüfvorgabe
+
+O003 wird **profilspezifisch** entschieden und nicht als globaler Azure-Files-Default.
+
+Mindestens getrennt bewerten:
+
 ```text
-Standard LRS
-vs.
-Premium LRS
+adds-small
+entra-small
+EntraDS-Profil, falls produktisiert
 ```
 
-Bewertung: IOPS/Latency, Profilanzahl, Kosten, Wachstum, Provisionierungsmodell, spätere Umstellung.
+Dabei müssen jeweils geprüft werden:
 
-**Entscheidung muss dokumentieren:** CostOptimized Default + Schwelle für Premium.
+- technisch unterstützte Identity-/Authentication-Kombination,
+- regionale Unterstützung, insbesondere Germany West Central,
+- Standard/HDD vs. SSD/Premium bzw. aktuelles Azure-Files-Bereitstellungsmodell,
+- IOPS und Latenz,
+- Profilanzahl und typische Concurrency,
+- Mindestbereitstellung / Provisionierungsmodell,
+- tatsächliche monatliche Kosten,
+- spätere Skalierung oder Tierwechsel.
+
+**Arbeitsannahme aus O002, noch keine Entscheidung:**
+
+- `adds-small`: Standard/HDD ist voraussichtlich der CostOptimized-Kandidat.
+- `entra-small`: cloud-only Entra-Kerberos-Unterstützung kann regional ein SSD/Premium-Tier erforderlich machen; für Germany West Central ist dies vor der Entscheidung anhand des aktuellen Microsoft-Supportstands zu verifizieren.
+
+**Entscheidung muss dokumentieren:** kostengünstigster unterstützter Default pro freigegebenem Profil + klare Schwelle/Ausnahme für höheres Tier.
 
 ---
 
@@ -377,7 +487,7 @@ Auslöser: Deep-Dive-Findings F012–F018.
 # 4. Abschlusskriterium des Architektur-Gates
 
 - [x] O001 entschieden und dokumentiert.
-- [ ] O002 entschieden und dokumentiert.
+- [x] O002 entschieden und dokumentiert.
 - [ ] O003 entschieden und dokumentiert.
 - [ ] O004 entschieden und dokumentiert.
 - [ ] O005 entschieden und dokumentiert.
