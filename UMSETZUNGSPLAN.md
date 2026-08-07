@@ -11,7 +11,7 @@
 
 # 1. Arbeitsmodell / Source of Truth
 
-Dieses Dokument bleibt die zentrale Projektsteuerung. Fachliche Details werden bewusst in thematische Unterdokumente ausgelagert.
+Dieses Dokument bleibt die zentrale Projektsteuerung.
 
 **Nur dieses Dokument ist verbindlich für:**
 
@@ -20,41 +20,41 @@ Dieses Dokument bleibt die zentrale Projektsteuerung. Fachliche Details werden b
 - Gate-Status,
 - Priorität,
 - Aufgabenstatus,
-- nächster Arbeitsschritt.
+- nächsten Arbeitsschritt.
 
-Die Detaildokumente sind verbindlich für technische Begründungen, Findings, Entscheidungsoptionen und Testanforderungen, führen aber **keinen konkurrierenden Projektstatus**.
+Detaildokumente enthalten technische Begründungen, Findings, Entscheidungsoptionen und Testanforderungen, aber keinen konkurrierenden Projektstatus.
 
 ## Dokumentenstruktur
 
 | Dokument | Zweck |
 |---|---|
 | [`UMSETZUNGSPLAN.md`](UMSETZUNGSPLAN.md) | Master: Gates, Phasen, Aufgaben, Prioritäten, Status |
-| [`docs/planung/ARCHITEKTUR-ENTSCHEIDUNGEN.md`](docs/planung/ARCHITEKTUR-ENTSCHEIDUNGEN.md) | beschlossene Leitplanken + offene O001–O010 |
+| [`docs/planung/ARCHITEKTUR-ENTSCHEIDUNGEN.md`](docs/planung/ARCHITEKTUR-ENTSCHEIDUNGEN.md) | beschlossene Leitplanken + O001–O010 |
 | [`docs/planung/AZURE-DEVOPS.md`](docs/planung/AZURE-DEVOPS.md) | Azure-DevOps-Migration, WIF, Pipelines, Runtime-Artefakte, GitHub-Stilllegung |
-| [`docs/planung/ACCELERATOR-DEEP-DIVE.md`](docs/planung/ACCELERATOR-DEEP-DIVE.md) | Accelerator-Findings F001–F039 inkl. Auswirkungen und Maßnahmen |
+| [`docs/planung/ACCELERATOR-DEEP-DIVE.md`](docs/planung/ACCELERATOR-DEEP-DIVE.md) | Findings F001–F039 inkl. Auswirkungen und Maßnahmen |
 | [`docs/planung/VALIDIERUNG-UND-RELEASE.md`](docs/planung/VALIDIERUNG-UND-RELEASE.md) | Preflight, Testmatrix, Security-/Kosten-Guardrails, Release-DoD |
-| [`docs/planung/KUNDEN-ONBOARDING.md`](docs/planung/KUNDEN-ONBOARDING.md) | operativer Standardprozess vom Kunden-Assessment bis Deployment, Validierung und Betriebsübergabe |
+| [`docs/planung/KUNDEN-ONBOARDING.md`](docs/planung/KUNDEN-ONBOARDING.md) | operativer Standardprozess vom Assessment bis Deployment und Betriebsübergabe |
 
 ## Pflege-Regel
 
 Bei jeder Arbeitssitzung:
 
-1. dieses Masterdokument lesen,
-2. aktuelles Gate und `NÄCHSTER SCHRITT` prüfen,
-3. nur das für die Aufgabe relevante Detaildokument lesen,
-4. neue Erkenntnisse im passenden Detaildokument erfassen,
-5. Status/Priorität ausschließlich hier aktualisieren,
+1. Master lesen.
+2. aktuelles Gate und `NÄCHSTER SCHRITT` prüfen.
+3. nur relevante Detaildokumente lesen.
+4. technische Erkenntnisse dort dokumentieren.
+5. Status/Priorität ausschließlich hier aktualisieren.
 6. erst danach Code ändern.
 
 ---
 
 # 2. Projektziel
 
-Der Microsoft AVD Accelerator bleibt die AVD Workload Deployment Engine. Darum entsteht eine dünne MSP-Schicht für:
+Microsoft AVD Accelerator bleibt die AVD Workload Deployment Engine. Darum entsteht eine dünne MSP-Schicht für:
 
 - kostenoptimierte KMU-Defaults,
 - Single-VNet-Foundation,
-- Entra-only oder optional AD DS,
+- Entra-only oder optional klassisches AD DS / Entra Domain Services,
 - optionale APP-/SQL-Workloads,
 - Azure DevOps CI/CD,
 - private/versionierte Runtime-Artefakte,
@@ -67,7 +67,6 @@ Zielgruppe:
 - typischerweise `<30 Mitarbeiter`,
 - meistens 1 Session Host,
 - zunächst 1–3 Hosts unterstützt,
-- Branchensoftware kann AD DS erforderlich machen, muss es aber nicht,
 - hohe Kostenpriorität,
 - keine unnötige Enterprise-Komplexität.
 
@@ -77,19 +76,18 @@ Zielgruppe:
 
 ## Aktives Gate: G0 – Architekturentscheidungen
 
-**Status: OFFEN / BLOCKIERT IMPLEMENTIERUNG**
+**Status: OFFEN / BLOCKIERT IMPLEMENTIERUNG**  
+**Fortschritt:** `1/10` Architekturentscheidungen geschlossen.
 
-Vor Beginn der eigentlichen Implementierung müssen **alle offenen Architekturentscheidungen O001–O010 geschlossen** werden.
+Alle O001–O010 müssen vor der eigentlichen Implementierung geschlossen sein.
 
-Details und Entscheidungskriterien:
+Details:
 
 [`docs/planung/ARCHITEKTUR-ENTSCHEIDUNGEN.md`](docs/planung/ARCHITEKTUR-ENTSCHEIDUNGEN.md)
 
-Aktueller Stand:
-
 | Entscheidung | Thema | Status |
 |---|---|---|
-| O001 | Entra Cloud Sync vs. Entra Connect Sync | `OFFEN` |
+| O001 | Synchronisationsverfahren bei klassischem AD DS | `BESCHLOSSEN` – Cloud Sync Standard, Connect Sync Feature-Fallback |
 | O002 | FSLogix Default | `OFFEN` |
 | O003 | Azure Files Tier | `OFFEN` |
 | O004 | Service Endpoint vs. Private Endpoint | `OFFEN` |
@@ -100,13 +98,22 @@ Aktueller Stand:
 | O009 | Patch in Place vs. Immutable/Replace | `OFFEN` |
 | O010 | gehärtetes DSC vs. neuer Storage-/Domain-Join-Helper | `OFFEN` |
 
+### O001 Kurzentscheidung
+
+Für klassisches AD DS gilt:
+
+```text
+Cloud Sync = MSP-Standard
+Connect Sync = Ausnahme, wenn konkrete Cloud-Sync-Funktionslücke vorliegt
+```
+
+Microsoft Entra Domain Services ist von O001 ausgenommen; gegen die Managed Domain wird kein eigener Connect-/Cloud-Sync-Agent betrieben.
+
 ### NÄCHSTER SCHRITT
 
-> **O001–O010 systematisch entscheiden und dokumentieren.**
+> **O002 – FSLogix Default entscheiden.**
 
-Bis G0 geschlossen ist, werden keine dauerhaften Foundation-/Accelerator-/Profil-Implementierungen begonnen.
-
-Recherche und isolierte, verwerfbare PoCs zur Entscheidungsfindung sind zulässig.
+Bis G0 geschlossen ist, werden keine dauerhaften Foundation-/Accelerator-/Profil-Implementierungen begonnen. Recherche und isolierte PoCs zur Entscheidungsfindung sind zulässig.
 
 ---
 
@@ -127,7 +134,7 @@ G3  MSP FOUNDATION
     VNet + Subnets + NAT + Service Endpoints
             ↓
 G4  IDENTITY
-    Entra-only und optional ADDS-Pfade
+    Entra-only und optionale ADDS-/EntraDS-Pfade
             ↓
 G5  ACCELERATOR COMPATIBILITY & HARDENING
     P0-Patchset / Idempotenz / Security
@@ -141,18 +148,23 @@ G8  VALIDIERUNG / RELEASE 1.0
 G9  OPTIONALE P2-FEATURES
 ```
 
-Ein Gate wird erst verlassen, wenn sein Exit-Kriterium erfüllt ist.
-
 ---
 
 # 5. G0 – Architekturentscheidungen
 
 **Priorität: P0 / zuerst**
 
-- [ ] A055 – O001–O010 vollständig entscheiden.
-- [ ] Entscheidungen in `ARCHITEKTUR-ENTSCHEIDUNGEN.md` festhalten.
-- [ ] Auswirkungen auf Aufgaben/Phasen dieses Masterplans einarbeiten.
-- [ ] keine Entscheidung stillschweigend während der Implementierung treffen.
+- [ ] A055 – O001–O010 vollständig schließen. `1/10 erledigt`
+- [x] O001 – Cloud Sync als Standard für klassisches AD DS; Connect Sync als begründeter Feature-Fallback.
+- [ ] O002 – FSLogix Default.
+- [ ] O003 – Azure Files Tier.
+- [ ] O004 – Azure Files Netzwerkzugriff.
+- [ ] O005 – Monitoring Baseline.
+- [ ] O006 – Session Host Größenstrategie.
+- [ ] O007 – Runtime-Artefakt-Zugriff.
+- [ ] O008 – AVD Power Management.
+- [ ] O009 – Session Host Patch Lifecycle.
+- [ ] O010 – sicherer Storage-/Domain-Join-Helper.
 
 **Exit-Kriterium:** O001–O010 stehen nicht mehr auf `OFFEN`.
 
@@ -162,47 +174,36 @@ Ein Gate wird erst verlassen, wenn sein Exit-Kriterium erfüllt ist.
 
 **Priorität: P0 / erste Implementierungsphase**
 
-Azure DevOps wird bewusst **nicht** ans Projektende verschoben. Alle nachfolgenden Implementierungen sollen bereits auf der Zielplattform entstehen.
+Details: [`docs/planung/AZURE-DEVOPS.md`](docs/planung/AZURE-DEVOPS.md)
 
-Details:
-
-[`docs/planung/AZURE-DEVOPS.md`](docs/planung/AZURE-DEVOPS.md)
-
-Aufgaben:
-
-- [ ] A016 – Repository vollständig nach Azure Repos migrieren. **P0**
-- [ ] A017 – Azure Pipelines / WIF / Approvals Grundgerüst. **P0**
+- [ ] A016 – Repository vollständig nach Azure Repos migrieren.
+- [ ] A017 – Azure Pipelines / WIF / Approvals Grundgerüst.
 - [ ] Branch Policies für `main`.
-- [ ] Validation-Pipeline als erster funktionierender Pipelinepfad.
-- [ ] Service Connection gegen Testsubscription mit Workload Identity Federation.
-- [ ] Upstream-Fetch-/Review-Prozess für öffentliches `Azure/avdaccelerator` dokumentieren.
-- [ ] Runtime-Artefakt-Grundweg gemäß O007 vorbereiten.
-- [ ] A056 – nach vollständiger Validierung eigenes GitHub-Repo archivieren/deaktivieren, sodass kein kostenpflichtiger laufender GitHub-Betrieb erforderlich ist. **P0**
+- [ ] Validation-Pipeline.
+- [ ] WIF-Service-Connection gegen Testsubscription.
+- [ ] Upstream-Fetch-/Review-Prozess für `Azure/avdaccelerator`.
+- [ ] Runtime-Artefakt-Grundweg gemäß O007.
+- [ ] A056 – eigenes GitHub-Repo nach validierter Migration stilllegen/archivieren.
 
-**Exit-Kriterium:** Alle weitere Projektarbeit kann vollständig in Azure DevOps erfolgen und das eigene GitHub-Repo wird technisch nicht mehr benötigt.
+**Exit-Kriterium:** Alle weitere Projektarbeit kann vollständig in Azure DevOps erfolgen.
 
 ---
 
 # 7. G2 – Baseline / Known Fixes / Preflight
 
-**Priorität: P0**
-
 - [ ] A003 – Accelerator-Baseline mit aktuellem Bicep-Tooling build/validieren.
-- [ ] relevante offene Microsoft-Issues/PRs erneut gegen dann aktuellen Upstream prüfen.
-- [ ] A025 – kaputte Agent-/Bootloader-URLs / PR #873 berücksichtigen.
+- [ ] relevante Microsoft-Issues/PRs erneut gegen dann aktuellen Upstream prüfen.
+- [ ] A025 – Agent-/Bootloader-URL-Fix / PR #873.
 - [ ] A035 – SKU-/Zone-/Quota-Preflight.
 - [ ] Resource Provider Preflight.
 - [ ] Marketplace Image Preflight Germany West Central.
-- [ ] entscheiden, ob Testbaseline bereits bekannte P0-Upstream-Fixes enthalten muss.
 - [ ] erstes What-If aus Azure DevOps.
 
-**Exit-Kriterium:** Bekannter, reproduzierbarer technischer Ausgangsstand für weitere MSP-Arbeiten.
+**Exit-Kriterium:** reproduzierbarer technischer Ausgangsstand.
 
 ---
 
 # 8. G3 – MSP Foundation
-
-**Priorität: P0**
 
 - [ ] A004 – MSP Foundation / Existing-VNet-Modell.
 - [ ] Resource Groups.
@@ -213,26 +214,22 @@ Aufgaben:
 - [ ] optional `GatewaySubnet`.
 - [ ] NSGs.
 - [ ] A034 – NAT Gateway / Explicit Outbound.
-- [ ] A033 – erforderliche Service Endpoints bei Existing VNet.
+- [ ] A033 – erforderliche Service Endpoints.
 - [ ] DNS Parameter/Outputs.
-- [ ] Accelerator erhält `createAvdVnet = false` und vorhandene Subnet IDs.
+- [ ] Accelerator mit `createAvdVnet = false`.
 - [ ] idempotentes Re-Deployment.
-
-**Exit-Kriterium:** Netzwerk/Foundation funktioniert unabhängig davon, ob später Entra-only oder ADDS verwendet wird.
 
 ---
 
 # 9. G4 – Identity
 
-Die genaue Umsetzung hängt von den G0-Entscheidungen ab.
-
 ## Entra-only
 
-- [ ] A010 – Entra-only-Profil ohne DC technisch testen.
+- [ ] A010 – Entra-only-Profil ohne DC testen.
 - [ ] Entra Join.
-- [ ] optional Intune Enrollment gemäß Profil.
+- [ ] optional Intune Enrollment.
 
-## ADDS – nur wenn benötigt
+## Klassisches AD DS – nur bei Bedarf
 
 - [ ] A009 – optionales New-Forest-DC-Modul.
 - [ ] DC01 statische private IP.
@@ -241,88 +238,84 @@ Die genaue Umsetzung hängt von den G0-Entscheidungen ab.
 - [ ] Health Check.
 - [ ] Azure Backup.
 - [ ] Monitoring gemäß O005.
-- [ ] A011 – ADDS/NewForest Pfad testen.
+- [ ] Cloud Sync gemäß O001 als Standard integrieren.
+- [ ] Connect Sync als dokumentierte Ausnahme ermöglichen, wenn benötigtes Feature Cloud Sync ausschließt.
+- [ ] A011 – ADDS/NewForest testen.
 
 ## Existing Forest Migration
 
 - [ ] temporäre S2S-Option.
 - [ ] Azure DC hinzufügen.
 - [ ] Replikation/DNS.
+- [ ] O001-Syncverfahren anhand Kundenanforderungen anwenden.
 - [ ] FSMO/Demotion.
-- [ ] alter On-Prem-Server wird nach Migration decommissioned.
+- [ ] On-Prem-Server decommissionen.
 
-**Exit-Kriterium:** Die für Release 1.0 vorgesehenen Identity-Pfade sind reproduzierbar.
+## Entra Domain Services
+
+- kein O001-Sync-Agent gegen die Managed Domain,
+- Microsoft-managed Synchronisierung aus Entra ID berücksichtigen.
 
 ---
 
 # 10. G5 – Accelerator Compatibility & Hardening
 
-Technische Details und alle Findings F001–F039:
+Details: [`docs/planung/ACCELERATOR-DEEP-DIVE.md`](docs/planung/ACCELERATOR-DEEP-DIVE.md)
 
-[`docs/planung/ACCELERATOR-DEEP-DIVE.md`](docs/planung/ACCELERATOR-DEEP-DIVE.md)
-
-## Release-1.0-P0-Arbeitspakete
+## P0
 
 - [ ] A005 – Management-VM Größe entkoppeln. F001
 - [ ] A006 – Management-VM Disk minimieren. F002
-- [ ] A007 – Management-VM automatisch deallokieren. F003
+- [ ] A007 – Management-VM deallokieren. F003
 - [ ] A022 – Windows-Server-2022-Legacy-Offer ersetzen. F004
 - [ ] A008 – Runtime-Skripte/DSC versionsfest/private Runtime-Artefakte. F005
 - [ ] A023 – `utcNow()` aus persistentem Naming entfernen. F006
-- [ ] A024 – Common-Tag-/`CreationTimeUTC`-Drift entfernen. F007
+- [ ] A024 – `CreationTimeUTC`-/Common-Tag-Drift entfernen. F007
 - [ ] A025 – Agent-/Bootloader-URL-Fix. F008
 - [ ] A026 – Registration Token Lifecycle entkoppeln. F009
 - [ ] A027 – Session-Host-Bootstrap idempotent. F010
 - [ ] A028 – Windows-Update-Verhalten gemäß O009. F011
 - [ ] A029 – Management-VM Secret-/Logging-Hardening. F012
 - [ ] A030 – DSC/MOF-Credential-Hardening + Cleanup. F013/F014
-- [ ] A031 – Firewall-/Local-Admin-Zustand sicher. F015/F016
-- [ ] A032 – Storage-State-Checks und Retry idempotent. F017/F018
+- [ ] A031 – Firewall-/Local-Admin-State sicher. F015/F016
+- [ ] A032 – Storage-State-Checks/Retry idempotent. F017/F018
 - [ ] A036 – Scaling-Plan-Parameterisierung, falls gemäß O008 benötigt. F022
 
-## P1-Hardening nach P0
+## P1
 
 - [ ] A041 – PowerShell-Runtime-Module versionieren. F023
 - [ ] A042 – Preview-API-Audit. F024
-- [ ] A043 – Approved Marketplace Image Catalog/Manifest. F025
-- [ ] A044 – Key Vault Premium → Standard als KMU-Default prüfen. F026
+- [ ] A043 – Approved Marketplace Image Catalog. F025
+- [ ] A044 – Key Vault Standard als KMU-Default prüfen. F026
 - [ ] A045 – Storage Identity/RBAC Scope härten. F027
-- [ ] A046 – Shared Key Access nach Identity-Migration deaktivieren/testen. F028
-- [ ] A047 – FSLogix Defender-Variable/Exclusions korrigieren. F029
-- [ ] A048 – Bicep einzige Source of Truth; ARM JSON nur Build-Artefakt. F030
+- [ ] A046 – Shared Key Access deaktivieren/testen. F028
+- [ ] A047 – FSLogix Defender-Variable/Exclusions. F029
+- [ ] A048 – Bicep einzige Source of Truth. F030
 - [ ] A049 – `br/public`-/AVM Supply-Chain-Pinning. F031
 - [ ] A050 – Security-Group-Array-Semantik. F032
-
-**Exit-Kriterium:** Relevantes P0-Patchset ist implementiert, dokumentiert und im Testprofil validiert.
 
 ---
 
 # 11. G6 – KMU-Profile / FSLogix
 
-Die tatsächlichen Defaults werden durch O002–O006/O008/O009 bestimmt.
-
-Mindestens geplante Profile:
+Geplante Profile mindestens:
 
 ```text
 entra-small
 adds-small
 ```
 
-Aufgaben:
-
 - [ ] Session Host Count Default 1.
 - [ ] VM-Größe parametrierbar.
 - [ ] Start VM on Connect gemäß O008.
-- [ ] A037 – ausgewähltes Power Management aus O008 testen.
+- [ ] A037 – ausgewähltes Power Management validieren.
 - [ ] A012 – FSLogix-Default aus O002 umsetzen.
-- [ ] A038 – Entra-only + FSLogix ohne Storage-Key-Default, falls im Profil vorgesehen. F020
-- [ ] A039 – FSLogix ACL-Isolation / Upstream #869. F019
+- [ ] A038 – Entra-only + FSLogix ohne Storage-Key-Default, falls vorgesehen. F020
+- [ ] A039 – FSLogix ACL-Isolation / #869. F019
 - [ ] A040 – Monitoring DCR, falls gemäß O005 Bestandteil. F021
-- [ ] Availability Zones Default aus, sofern Architekturentscheidung nichts anderes vorgibt.
+- [ ] Availability Zones Default aus, sofern nicht anders entschieden.
 - [ ] DDoS Default aus.
-- [ ] AVD Private Link Default aus, sofern O004 nichts anderes bestimmt.
-
-**Exit-Kriterium:** Freizugebende KMU-Profile besitzen eindeutige technische Defaults und funktionieren reproduzierbar.
+- [ ] AVD Private Link gemäß O004.
 
 ---
 
@@ -336,41 +329,29 @@ Aufgaben:
 - [ ] Backup-Anforderungen.
 - [ ] A015 – Dependency Automation.
 
-Runtime:
-
 ```text
 Start: SQL → Health → APP
 Stop:  APP vollständig → SQL
 ```
 
-Eigene Dependency-Automation darf nicht denselben Session Host parallel zu AVD Autoscale steuern.
-
 ---
 
 # 13. G8 – Validierung / Release 1.0
 
-Details:
-
-[`docs/planung/VALIDIERUNG-UND-RELEASE.md`](docs/planung/VALIDIERUNG-UND-RELEASE.md)
-
-Master-Aufgaben:
+Details: [`docs/planung/VALIDIERUNG-UND-RELEASE.md`](docs/planung/VALIDIERUNG-UND-RELEASE.md)
 
 - [ ] A018 – Post-Deployment-Tests.
-- [ ] A019 – Kostenmodelle der freigegebenen Standardprofile.
+- [ ] A019 – Kostenmodelle Standardprofile.
 - [ ] Preflight vollständig.
 - [ ] relevante Testmatrix bestanden.
 - [ ] Security-Gates bestanden.
 - [ ] Idempotenz/Re-Deployment bestanden.
-- [ ] Release-Manifest erzeugt.
-- [ ] Production Approval eingerichtet.
-
-**Exit-Kriterium:** Release-DoD im Detaildokument erfüllt.
+- [ ] Release-Manifest.
+- [ ] Production Approval.
 
 ---
 
 # 14. G9 – Optionale / P2-Themen
-
-Nicht blockierend für Release 1.0:
 
 - [ ] A020 – Resilient-Profil.
 - [ ] A021 – Existing Hub/Hub-Spoke.
@@ -383,16 +364,16 @@ Nicht blockierend für Release 1.0:
 
 # 15. Master-Aufgabenregister
 
-Dieses Register ist die Statusquelle. Detaildokumente dürfen die Aufgaben erläutern, aber den Status nicht eigenständig verändern.
+Dieses Register ist die Statusquelle.
 
 | ID | Prio | Aufgabe | Status | Gate |
 |---|---:|---|---|---|
 | A001 | P0 | Accelerator importieren | `[x]` | Vorarbeit |
 | A002 | P0 | Master-Umsetzungsplan anlegen | `[x]` | Vorarbeit |
-| A055 | P0 | O001–O010 vollständig schließen | `[ ]` | G0 |
-| A016 | **P0** | Repository nach Azure Repos migrieren | `[ ]` | G1 |
-| A017 | **P0** | Azure Pipelines / WIF / Approvals Grundgerüst | `[ ]` | G1 |
-| A056 | **P0** | eigenes GitHub-Repo nach validierter Migration stilllegen/archivieren | `[ ]` | G1 |
+| A055 | P0 | O001–O010 vollständig schließen | `[ ]` – 1/10 | G0 |
+| A016 | P0 | Repository nach Azure Repos migrieren | `[ ]` | G1 |
+| A017 | P0 | Azure Pipelines / WIF / Approvals | `[ ]` | G1 |
+| A056 | P0 | eigenes GitHub-Repo stilllegen/archivieren | `[ ]` | G1 |
 | A003 | P0 | Baseline build/validieren / Known Upstream Bugs | `[ ]` | G2 |
 | A035 | P0 | SKU-/Zone-/Quota-Preflight | `[ ]` | G2 |
 | A004 | P0 | MSP Foundation / Existing-VNet-Modell | `[ ]` | G3 |
@@ -411,14 +392,14 @@ Dieses Register ist die Statusquelle. Detaildokumente dürfen die Aufgaben erlä
 | A025 | P0 | Agent-/Bootloader URL-Fix #873 | `[ ]` | G2/G5 |
 | A026 | P0 | Registration Token Lifecycle entkoppeln | `[ ]` | G5 |
 | A027 | P0 | Session-Host Agent Bootstrap idempotent | `[ ]` | G5 |
-| A028 | P0 | Session-Host Patchmodell/Windows Update gemäß O009 | `[ ]` | G5 |
+| A028 | P0 | Session-Host Patchmodell/Windows Update | `[ ]` | G5 |
 | A029 | P0 | Management-VM Secret-/Logging-Hardening | `[ ]` | G5 |
 | A030 | P0 | Plaintext-DSC-/MOF-Hardening/Cleanup | `[ ]` | G5 |
 | A031 | P0 | Management-VM Firewall-/Local-Admin-State | `[ ]` | G5 |
 | A032 | P0 | Storage-DSC State Checks/Retry idempotent | `[ ]` | G5 |
 | A036 | P1* | Scaling Plan vollständig parametrieren | `[ ]` | G5/G6 |
 | A012 | P1* | FSLogix KMU-Default umsetzen | `[ ]` | G6 |
-| A037 | P0/P1 | ausgewähltes Power Management im 1-Host-Profil validieren | `[ ]` | G6 |
+| A037 | P0/P1 | Power Management im 1-Host-Profil validieren | `[ ]` | G6 |
 | A038 | P0/P1 | Entra-only + FSLogix ohne Storage-Key-Default | `[ ]` | G6 |
 | A039 | P0 | FSLogix ACL-Isolation / #869 | `[ ]` | G6 |
 | A040 | P1 | Monitoring DCR 24H2/25H2 | `[ ]` | G6 |
@@ -444,28 +425,25 @@ Dieses Register ist die Statusquelle. Detaildokumente dürfen die Aufgaben erlä
 | A053 | P2 | Availability-Zone Fix #847 | `[ ]` | G9 |
 | A054 | P2 | AutomaticSessionHostConfiguration #850 PoC | `[ ]` | G9 |
 
-`P1*` bedeutet: tatsächliche Priorität kann nach G0 auf P0 steigen, wenn die betreffende Architekturentscheidung das Feature zum Release-1.0-Default macht.
+`P1*`: kann nach G0 zu P0 werden, falls die Architekturentscheidung das Feature zum Release-1.0-Default macht.
 
 ---
 
-# 16. Zusammenfassung der bereits beschlossenen Architektur
-
-Die vollständige Begründung steht in `ARCHITEKTUR-ENTSCHEIDUNGEN.md`.
-
-Kurzfassung:
+# 16. Kurzfassung beschlossener Architektur
 
 - Microsoft Accelerator bleibt AVD-Core.
+- 1 Session Host ist KMU-Default.
 - kein genereller DC-Zwang.
 - Entra-only ist vollwertiges Zielmodell.
-- ADDS nur bei technischer/fachlicher Notwendigkeit.
-- bei ADDS CostOptimized ist ein DC zulässig; zwei DCs optional resilient.
+- klassisches AD DS nur bei Bedarf; CostOptimized darf mit einem DC arbeiten.
+- **bei klassischem AD DS: Entra Cloud Sync Standard, Connect Sync nur bei konkreter Funktionslücke.**
+- Entra Domain Services betreibt keinen eigenen O001-Sync-Agent gegen die Managed Domain.
 - On-Prem-Server ist nur Migrationsquelle.
 - Single VNet als KMU-Default.
 - Foundation vor Accelerator; `createAvdVnet = false`.
 - kein Azure Firewall Default.
-- 1 Session Host Default.
 - APP/SQL separate MSP-Workloads.
-- Management-VM bleibt erhalten, wird aber verkleinert, gehärtet und deallokiert.
+- Management-VM bleibt erhalten, wird verkleinert, gehärtet und deallokiert.
 - Azure DevOps ist dauerhafte Entwicklungs-/Deploymentplattform.
 
 ---
@@ -482,26 +460,19 @@ relevante offene Issues
 relevante offene PRs
 ```
 
-Vor Eigenentwicklung prüfen, ob Microsoft bereits einen Fix vorbereitet hat.
-
-Kein ungeprüftes automatisches Upstream-Merge.
-
-Jedes MSP-Release dokumentiert Upstream-Commit + zusätzliche Fixes + eigenes Patch-Delta.
+Kein ungeprüftes automatisches Merge. Jedes MSP-Release dokumentiert Upstream-Commit + zusätzliche Fixes + eigenes Patch-Delta.
 
 ---
 
 # 18. Änderungsregel für diesen Masterplan
 
-Neue technische Details gehören grundsätzlich in das passende Detaildokument.
+Neue technische Details gehören in das passende Detaildokument.
 
-In diesen Master gehören nur:
+In den Master gehören nur:
 
-- neue/geschlossene Gates,
-- neue Aufgaben-IDs,
+- Gate-/Statusänderungen,
+- Aufgaben-IDs,
 - Prioritätsänderungen,
-- Statusänderungen,
-- geänderte Reihenfolge,
-- neue Architekturentscheidung als Kurzreferenz,
+- Reihenfolge,
+- Architekturentscheidungen als Kurzreferenz,
 - nächster Arbeitsschritt.
-
-Damit soll der Master dauerhaft lesbar bleiben und nicht erneut zu einem technischen Sammeldokument anwachsen.
